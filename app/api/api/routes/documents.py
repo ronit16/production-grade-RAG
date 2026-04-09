@@ -5,10 +5,10 @@ from typing import List, Optional
 from uuid import UUID
 import uuid
 
-from core.database import get_db
-from models.db import DocumentMetadata, DocumentStatus
-from models.schemas import DocumentResponse, DeleteResponse
-from services.document_processor import process_upload_file, process_url, delete_document_from_vector_store
+from app.core.database import get_db
+from app.models.db import DocumentMetadata, DocumentStatus
+from app.models.schemas import DocumentResponse, DeleteResponse
+from app.services.document_processor import process_upload_file, process_url, delete_document_from_vector_store
 
 router = APIRouter()
 

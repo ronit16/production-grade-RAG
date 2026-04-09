@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 # Mock out Chroma before importing the service to prevent errors if no valid API key/db is up
 with patch("langchain_chroma.Chroma"):
     with patch("langchain_google_genai.GoogleGenerativeAIEmbeddings"):
-        from services.document_processor import process_url
+        from app.services.document_processor import process_url
 
 
 # Parametrize for all supported file types
@@ -34,7 +34,7 @@ def test_process_document_supported_types(mock_vector_store, ext, loader_patch):
             tmp.write(b"test content")
             tmp_path = tmp.name
 
-        from services.document_processor import process_document
+        from app.services.document_processor import process_document
         import uuid
         doc_id = str(uuid.uuid4())
 

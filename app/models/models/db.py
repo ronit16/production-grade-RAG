@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import enum
 
-from core.database import Base
+from app.core.database import Base
 
 class DocumentStatus(str, enum.Enum):
     UPLOADED = "uploaded"

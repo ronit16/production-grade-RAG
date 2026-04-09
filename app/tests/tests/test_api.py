@@ -4,7 +4,7 @@ import uuid
 from unittest.mock import patch
 
 from main import app
-from models.schemas import DocumentResponse
+from app.models.schemas import DocumentResponse
 
 @pytest.fixture
 async def async_client():

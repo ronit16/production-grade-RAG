@@ -1,6 +1,6 @@
 import json
 from uuid import UUID
-from core.database import redis_client
+from app.core.database import redis_client
 
 SESSION_EXPIRY = 3600 # 1 hour
 

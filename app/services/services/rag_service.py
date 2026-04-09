@@ -5,8 +5,8 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
 
-from services.document_processor import vector_store
-from core.config import settings
+from app.services.document_processor import vector_store
+from app.core.config import settings
 
 # Setup Gemini LLM
 llm = ChatGoogleGenerativeAI(

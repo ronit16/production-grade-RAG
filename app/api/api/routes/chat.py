@@ -4,11 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
 
-from core.database import get_db
-from models.db import ChatSession, ChatMessage
-from models.schemas import ChatRequest, ChatResponse, Citation
-from services.rag_service import generate_rag_response
-from services.session_manager import get_session_history_from_redis, append_to_redis_session
+from app.core.database import get_db
+from app.models.db import ChatSession, ChatMessage
+from app.models.schemas import ChatRequest, ChatResponse, Citation
+from app.services.rag_service import generate_rag_response
+from app.services.session_manager import get_session_history_from_redis, append_to_redis_session
 
 router = APIRouter()
 

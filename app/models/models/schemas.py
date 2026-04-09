@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
-from models.db import DocumentStatus
+from app.models.db import DocumentStatus
 
 # --- Document Schemas ---
 

@@ -16,8 +16,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 
-from core.config import settings
-from core.database import chroma_client
+from app.core.config import settings
+from app.core.database import chroma_client
 
 # Define the embedding model using Gemini
 embeddings = GoogleGenerativeAIEmbeddings(
