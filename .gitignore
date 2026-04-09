@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+env/
+.venv/
+venv/
+ENV/
+
+# VSCode
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env
+.env.*
+
+# ChromaDB
+chroma_data/
+
+# Temp uploads
+temp_uploads/
+
+# Docker
+*.pid
+
+# Test
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# Misc
+*.bak
+*.swp
