@@ -8,7 +8,9 @@ from langchain_community.document_loaders import (
     PyPDFLoader,
     UnstructuredMarkdownLoader,
     Docx2txtLoader,
-    WebBaseLoader
+    WebBaseLoader,
+    UnstructuredHTMLLoader,
+    TextLoader
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -43,14 +45,19 @@ async def process_upload_file(file: UploadFile, document_id: UUID) -> List:
     return await process_document(file_path, file.filename, str(document_id), file.content_type)
 
 async def process_document(file_path: str, filename: str, document_id: str, content_type: Optional[str] = None) -> None:
+
     loader = None
-    
-    if filename.endswith(".pdf") or content_type == "application/pdf":
+    ext = filename.lower().split(".")[-1]
+    if ext == "pdf" or content_type == "application/pdf":
         loader = PyPDFLoader(file_path)
-    elif filename.endswith(".md"):
+    elif ext == "md":
         loader = UnstructuredMarkdownLoader(file_path)
-    elif filename.endswith(".docx") or filename.endswith(".doc"):
+    elif ext in ("docx", "doc"):
         loader = Docx2txtLoader(file_path)
+    elif ext == "html" or content_type == "text/html":
+        loader = UnstructuredHTMLLoader(file_path)
+    elif ext == "txt" or content_type == "text/plain":
+        loader = TextLoader(file_path)
     else:
         raise ValueError(f"Unsupported file type for {filename}")
 

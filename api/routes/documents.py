@@ -62,7 +62,13 @@ async def upload_document(
 
     doc_id = uuid.uuid4()
     filename = file.filename if file else url
-    source_type = "url" if url else filename.split(".")[-1].lower()
+    ext = filename.split(".")[-1].lower() if file else "url"
+    if url:
+        source_type = "url"
+    elif ext in ["pdf", "md", "docx", "doc", "txt", "html"]:
+        source_type = ext
+    else:
+        source_type = "other"
 
     new_doc = DocumentMetadata(
         id=doc_id,

@@ -10,7 +10,7 @@ class DocumentResponse(BaseModel):
     id: UUID
     tenant_id: UUID
     filename: str
-    source_type: str
+    source_type: str  # e.g., pdf, md, docx, txt, html, url
     upload_time: datetime
     status: DocumentStatus
     error_message: Optional[str] = None
