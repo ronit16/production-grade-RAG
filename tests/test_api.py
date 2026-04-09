@@ -23,15 +23,17 @@ async def test_root(async_client):
 async def test_upload_url(mock_get_db, async_client):
     # Mocking DB and background tasks to avoid real execution during unit tests
     with patch("api.routes.documents.background_process_url") as mock_bg:
+        tenant_id = str(uuid.uuid4())
         response = await async_client.post(
             "/documents/upload",
-            data={"url": "https://example.com"}
+            data={"url": "https://example.com", "tenant_id": tenant_id}
         )
         assert response.status_code == 200
         data = response.json()
         assert "id" in data
         assert data["filename"] == "https://example.com"
         assert data["source_type"] == "url"
+        assert data["tenant_id"] == tenant_id
         assert data["status"] == "uploaded" or data["status"] == "processing"
 
 @pytest.mark.asyncio

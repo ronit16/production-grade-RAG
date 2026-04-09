@@ -54,17 +54,19 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
     url: Optional[str] = Form(None),
+    tenant_id: str = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
     if not file and not url:
         raise HTTPException(status_code=400, detail="Must provide either file or url")
-    
+
     doc_id = uuid.uuid4()
     filename = file.filename if file else url
     source_type = "url" if url else filename.split(".")[-1].lower()
-    
+
     new_doc = DocumentMetadata(
         id=doc_id,
+        tenant_id=tenant_id,
         filename=filename,
         source_type=source_type,
         status=DocumentStatus.PROCESSING

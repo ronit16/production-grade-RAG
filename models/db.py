@@ -17,6 +17,7 @@ class DocumentMetadata(Base):
     __tablename__ = "document_metadata"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Multi-tenancy
     filename = Column(String(255), nullable=False)
     source_type = Column(String(50), nullable=False) # e.g., pdf, md, url
     upload_time = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
@@ -27,10 +28,10 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Multi-tenancy
     title = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
-    
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
 
 class ChatMessage(Base):
@@ -38,8 +39,8 @@ class ChatMessage(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(UUID(as_uuid=True), nullable=False, index=True)  # Multi-tenancy
     role = Column(String(50), nullable=False) # 'user' or 'assistant'
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
-
     session = relationship("ChatSession", back_populates="messages")

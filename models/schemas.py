@@ -8,6 +8,7 @@ from models.db import DocumentStatus
 
 class DocumentResponse(BaseModel):
     id: UUID
+    tenant_id: UUID
     filename: str
     source_type: str
     upload_time: datetime
@@ -20,6 +21,7 @@ class DocumentResponse(BaseModel):
 class DeleteResponse(BaseModel):
     message: str
     document_id: UUID
+    tenant_id: UUID
 
 # --- Chat Schemas ---
 
@@ -31,9 +33,11 @@ class Citation(BaseModel):
 class ChatRequest(BaseModel):
     query: str
     session_id: Optional[UUID] = None
+    tenant_id: UUID
 
 class ChatResponse(BaseModel):
     session_id: UUID
+    tenant_id: UUID
     answer: str
     citations: List[Citation] = []
 
