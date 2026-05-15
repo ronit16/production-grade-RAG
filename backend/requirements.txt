@@ -1,0 +1,56 @@
+# ── Web framework ──────────────────────────────────────────────────────────────
+fastapi
+uvicorn[standard]
+python-multipart          # required for FastAPI file upload (UploadFile)
+
+# ── Database ───────────────────────────────────────────────────────────────────
+sqlalchemy[asyncio]
+asyncpg                   # async PostgreSQL driver
+psycopg2-binary           # sync driver (used by Celery workers)
+alembic                   # DB migrations
+
+# ── Cache ──────────────────────────────────────────────────────────────────────
+redis[asyncio]            # async Redis client
+
+# ── Config & validation ────────────────────────────────────────────────────────
+pydantic
+pydantic-settings
+python-dotenv
+
+# ── Auth ───────────────────────────────────────────────────────────────────────
+PyJWT                     # RS256 JWT encode/decode
+passlib[bcrypt]           # password hashing
+email-validator           # pydantic EmailStr validation
+
+# ── LLM & embeddings ──────────────────────────────────────────────────────────
+openai                    # embeddings + GPT-4o
+google-generativeai       # Gemini models (used by LiteLLM)
+litellm                   # provider-agnostic LLM routing + fallback
+
+# ── Vector database (dense + sparse + hybrid fusion) ──────────────────────────
+qdrant-client             # Qdrant async/sync Python client
+fastembed                 # BM25 sparse embeddings (Qdrant/bm25 model)
+
+# ── Reranking ─────────────────────────────────────────────────────────────────
+sentence-transformers     # cross-encoder reranker (MiniLM)
+
+# ── Document parsing ───────────────────────────────────────────────────────────
+unstructured[all-docs]    # PDF, DOCX, HTML, MD parsing
+pdfminer.six
+docx2txt
+markdown
+beautifulsoup4
+
+# ── Object storage ────────────────────────────────────────────────────────────
+boto3                     # S3 upload/download
+
+# ── Async task queue ──────────────────────────────────────────────────────────
+celery[rabbitmq]          # async worker
+flower                    # Celery task monitoring UI
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest
+pytest-asyncio
+httpx                     # async HTTP client for FastAPI test client
+ragas                     # RAG evaluation metrics
+datasets                  # HuggingFace datasets (used by RAGAS)

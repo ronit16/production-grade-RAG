@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+
+* { box-sizing: border-box; }
+
+body {
+  background: #212121;
+  color: #ececec;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3f3f3f; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* ── Auth page helpers ────────────────────────────────────────────────────── */
+
+.auth-bg { background: #0d0d0d; }
+
+.auth-card {
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 1rem;
+  padding: 1.75rem;
+}
+
+.auth-input {
+  display: block;
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.625rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.auth-input::placeholder { color: #555; }
+.auth-input:focus { border-color: #6366f1; }
+
+.auth-btn {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.625rem;
+  background: #6366f1;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  transition: background 0.15s, opacity 0.15s;
+  cursor: pointer;
+}
+.auth-btn:hover:not(:disabled) { background: #818cf8; }
+.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
