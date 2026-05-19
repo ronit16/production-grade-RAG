@@ -37,11 +37,11 @@ export async function apiLogin(email: string, password: string): Promise<AuthRes
   return handleResponse<AuthResponse>(res);
 }
 
-export async function apiRegister(email: string, password: string): Promise<AuthResponse> {
+export async function apiRegister(username: string, email: string, password: string): Promise<AuthResponse> {
   const res = await fetch(`${BASE}/v1/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username, email, password }),
   });
   return handleResponse<AuthResponse>(res);
 }

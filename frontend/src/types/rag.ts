@@ -6,6 +6,7 @@ export interface AuthResponse {
   user_id: string;
   tenant_id: string;
   email: string;
+  username: string;
 }
 
 export interface StoredUser {
@@ -13,6 +14,7 @@ export interface StoredUser {
   user_id: string;
   tenant_id: string;
   email: string;
+  username: string;
 }
 
 // ── Documents ─────────────────────────────────────────────────────────────────

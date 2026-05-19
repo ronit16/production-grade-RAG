@@ -117,9 +117,9 @@ function Sidebar({
         </Link>
         <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500">
           <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs text-white font-semibold flex-shrink-0">
-            {user?.email?.[0]?.toUpperCase() ?? 'U'}
+            {user?.username?.[0]?.toUpperCase() ?? 'U'}
           </div>
-          <span className="truncate flex-1 text-gray-400">{user?.email}</span>
+          <span className="truncate flex-1 text-gray-400">{user?.username ?? user?.email}</span>
           <button
             onClick={() => { logout(); router.push('/login'); }}
             title="Sign out"

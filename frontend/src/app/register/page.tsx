@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { apiRegister } from '@/lib/api';
 
 export default function RegisterPage() {
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -19,11 +20,12 @@ export default function RegisterPage() {
     e.preventDefault();
     if (password !== confirm) { setError('Passwords do not match'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (username.trim().length < 3) { setError('Username must be at least 3 characters'); return; }
     setLoading(true);
     setError('');
     try {
-      const data = await apiRegister(email, password);
-      setUser({ token: data.access_token, user_id: data.user_id, tenant_id: data.tenant_id, email: data.email });
+      const data = await apiRegister(username.trim(), email, password);
+      setUser({ token: data.access_token, user_id: data.user_id, tenant_id: data.tenant_id, email: data.email, username: data.username });
       router.push('/chat');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -46,6 +48,19 @@ export default function RegisterPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-card space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">Username</label>
+            <input
+              type="text"
+              autoComplete="username"
+              placeholder="your_username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="auth-input"
+              required
+            />
+            <p className="mt-1 text-xs text-gray-500">3–32 characters, letters/numbers/hyphens/underscores</p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
             <input

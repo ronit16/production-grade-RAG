@@ -72,8 +72,9 @@ class User(Base):
 
     id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id  = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
-    email      = Column(String(320), nullable=False)
-    hashed_password = Column(String(128), nullable=True)   # null for SSO-only users
+    username   = Column(String(64), unique=True, nullable=True)        # globally unique display name
+    email      = Column(String(320), unique=True, nullable=False)      # globally unique for login
+    hashed_password = Column(String(128), nullable=True)               # null for SSO-only users
     role       = Column(String(32), nullable=False, default="member")  # owner|admin|member
     is_active  = Column(Boolean, nullable=False, default=True)
 

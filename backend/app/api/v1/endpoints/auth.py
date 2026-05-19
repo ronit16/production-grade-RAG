@@ -5,7 +5,7 @@ import uuid
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,8 +22,28 @@ TOKEN_TTL = 60 * 60 * 24  # 24 h
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
+    username: str
     email: EmailStr
     password: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("Username must be at least 3 characters")
+        if len(v) > 32:
+            raise ValueError("Username must be 32 characters or fewer")
+        if not v.replace("_", "").replace("-", "").isalnum():
+            raise ValueError("Username may only contain letters, numbers, hyphens, and underscores")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
 
 
 class LoginRequest(BaseModel):
@@ -37,6 +57,7 @@ class AuthResponse(BaseModel):
     user_id: str
     tenant_id: str
     email: str
+    username: str
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,15 +81,21 @@ def _issue_token(user: User) -> str:
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Create a new account. Each user gets their own isolated tenant."""
+    # Check email uniqueness
     result = await db.execute(select(User).where(User.email == req.email))
     if result.scalar_one_or_none():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email already registered")
 
-    slug = req.email.split("@")[0] + "-" + str(uuid.uuid4())[:8]
+    # Check username uniqueness
+    result = await db.execute(select(User).where(User.username == req.username))
+    if result.scalar_one_or_none():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Username already taken")
+
+    slug = req.username.lower() + "-" + str(uuid.uuid4())[:8]
     tenant = Tenant(
         id=uuid.uuid4(),
         slug=slug,
-        name=req.email.split("@")[0],
+        name=req.username,
         plan=PlanTier.FREE,
         vector_namespace=slug,
         is_active=True,
@@ -79,6 +106,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     user = User(
         id=uuid.uuid4(),
         tenant_id=tenant.id,
+        username=req.username,
         email=req.email,
         role="owner",
         hashed_password=pwd_context.hash(req.password),
@@ -92,6 +120,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         user_id=str(user.id),
         tenant_id=str(tenant.id),
         email=user.email,
+        username=user.username,
     )
 
 
@@ -115,4 +144,5 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         user_id=str(user.id),
         tenant_id=str(user.tenant_id),
         email=user.email,
+        username=user.username or user.email.split("@")[0],
     )
