@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login'];
+const PUBLIC_PATHS = ['/login', '/register'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -10,9 +10,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // The API key is stored in localStorage (client-side only), so we can't
-  // read it in the Edge middleware. We rely on the client-side AuthProvider
-  // redirect instead; middleware just passes through.
+  // JWT is stored in localStorage (client-side only), so auth state can't be
+  // read in Edge middleware. Auth guards live in the (main) layout instead.
   return NextResponse.next();
 }
 
