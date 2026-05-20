@@ -156,12 +156,13 @@ def upsert_to_qdrant(
     chunks:           list[ChunkRecord],
     dense_vectors:    list[list[float]],
     sparse_vectors:   list[SparseVector],
+    user_id:          Optional[str] = None,
 ) -> None:
     """
     Upsert each chunk as a Qdrant point with:
       - 'dense'  named vector  (OpenAI embedding)
       - 'sparse' named vector  (BM25 from fastembed)
-    Tenant isolation is enforced via the `tenant_id` payload field + query-time filter.
+    Tenant and user isolation are enforced via payload fields + query-time filters.
     """
     points = [
         PointStruct(
@@ -172,6 +173,7 @@ def upsert_to_qdrant(
             },
             payload={
                 "tenant_id":   tenant_id,
+                "user_id":     user_id,
                 "document_id": document_id,
                 "chunk_index": chunk.chunk_index,
                 "page_number": chunk.page_number or 0,
@@ -237,6 +239,7 @@ def process_document(
     s3_key:           str,
     content_type:     str,
     embedding_model:  str,
+    user_id:          Optional[str] = None,
 ) -> dict:
     """
     Full ingestion pipeline for a single document. Retries up to 3 times.
@@ -267,7 +270,7 @@ def process_document(
 
         # Step 3: Upsert to Qdrant
         logger.info(f"[{document_id}] Upserting {len(chunks)} points to Qdrant")
-        upsert_to_qdrant(tenant_id, document_id, chunks, dense_vecs, sparse_vecs)
+        upsert_to_qdrant(tenant_id, document_id, chunks, dense_vecs, sparse_vecs, user_id)
 
         # Step 4: Persist chunk metadata to PostgreSQL
         persist_chunks(tenant_id, document_id, chunks)

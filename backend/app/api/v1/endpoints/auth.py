@@ -2,9 +2,9 @@
 import time
 import uuid
 
+import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
-from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,14 @@ from app.core.database import get_db
 from app.models.db import PlanTier, Tenant, User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 TOKEN_TTL = 60 * 60 * 24  # 24 h
 
@@ -109,7 +116,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         username=req.username,
         email=req.email,
         role="owner",
-        hashed_password=pwd_context.hash(req.password),
+        hashed_password=_hash_password(req.password),
         is_active=True,
     )
     db.add(user)
@@ -133,7 +140,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user or not user.hashed_password:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 
-    if not pwd_context.verify(req.password, user.hashed_password):
+    if not _verify_password(req.password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 
     if not user.is_active:

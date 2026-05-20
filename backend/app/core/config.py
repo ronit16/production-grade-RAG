@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings
 
 
 class EmbeddingModel(str, Enum):
-    OPENAI_LARGE   = "text-embedding-3-large"   # 1536-dim
+    OPENAI_LARGE   = "text-embedding-3-large"   # 3072-dim
     OPENAI_SMALL   = "text-embedding-3-small"   # 1536-dim
     BGE_M3         = "BAAI/bge-m3"              # 1024-dim (open-source)
 
@@ -88,7 +88,8 @@ class Settings(BaseSettings):
     DEFAULT_DAILY_TOKEN_LIMIT: int = 500_000
 
     # ── Observability ──────────────────────────────────────────────────────
-    OTEL_ENDPOINT: str       = "http://jaeger:4318"
+    OTEL_ENABLED: bool       = False
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://otel-collector:4317"
     LOG_LEVEL: str           = "INFO"
     SENTRY_DSN: Optional[str] = None
 

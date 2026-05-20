@@ -19,7 +19,7 @@ python-dotenv
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 PyJWT                     # RS256 JWT encode/decode
-passlib[bcrypt]           # password hashing
+bcrypt                    # password hashing
 email-validator           # pydantic EmailStr validation
 
 # ── LLM & embeddings ──────────────────────────────────────────────────────────
@@ -51,6 +51,20 @@ flower                    # Celery task monitoring UI
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest
 pytest-asyncio
+pytest-timeout            # per-test timeout guard
 httpx                     # async HTTP client for FastAPI test client
+testcontainers[postgres,redis]  # real containers in regression tests
+respx                     # httpx-level mock for OpenAI/Gemini HTTP calls
 ragas                     # RAG evaluation metrics
 datasets                  # HuggingFace datasets (used by RAGAS)
+
+# ── Observability ─────────────────────────────────────────────────────────────
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-sqlalchemy
+opentelemetry-instrumentation-redis
+opentelemetry-exporter-otlp-proto-grpc
+prometheus-fastapi-instrumentator  # exposes /metrics endpoint
+
+# ── Load testing ──────────────────────────────────────────────────────────────
+locust

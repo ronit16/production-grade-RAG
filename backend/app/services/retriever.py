@@ -23,7 +23,9 @@ from qdrant_client.models import (
     Fusion,
     FusionQuery,
     HnswConfigDiff,
+    IsEmptyCondition,
     MatchValue,
+    PayloadField,
     PayloadSchemaType,
     Prefetch,
     SparseVector,
@@ -207,11 +209,21 @@ async def _embed_sparse(text: str) -> SparseVector:
 # Hybrid search via Qdrant Prefetch + native RRF
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _tenant_filter(tenant_id: str, filter_doc_ids: Optional[list[str]] = None) -> Filter:
+def _tenant_filter(
+    tenant_id: str,
+    filter_doc_ids: Optional[list[str]] = None,
+    user_id: Optional[str] = None,
+) -> Filter:
     conditions = [FieldCondition(key="tenant_id", match=MatchValue(value=str(tenant_id)))]
     if filter_doc_ids:
         from qdrant_client.models import MatchAny
         conditions.append(FieldCondition(key="document_id", match=MatchAny(any=filter_doc_ids)))
+    if user_id:
+        # Match points that either have no user_id (legacy pre-fix data) or match the current user.
+        conditions.append(Filter(should=[
+            IsEmptyCondition(is_empty=PayloadField(key="user_id")),
+            FieldCondition(key="user_id", match=MatchValue(value=str(user_id))),
+        ]))
     return Filter(must=conditions)
 
 
@@ -220,12 +232,13 @@ async def hybrid_search(
     tenant_id: str,
     top_k: int,
     filter_doc_ids: Optional[list[str]] = None,
+    user_id: Optional[str] = None,
 ) -> list[dict]:
     """
     Run dense + sparse searches in parallel, then fuse with Qdrant's native RRF.
     Returns raw result dicts ready for reranking.
     """
-    payload_filter = _tenant_filter(str(tenant_id), filter_doc_ids)
+    payload_filter = _tenant_filter(str(tenant_id), filter_doc_ids, user_id)
 
     # Build both query vectors concurrently
     dense_vec, sparse_vec = await asyncio.gather(
@@ -304,6 +317,7 @@ async def retrieve(
     ctx: TenantContext,
     history: list[dict] | None = None,
     filter_doc_ids: list[str] | None = None,
+    user_id: Optional[str] = None,
 ) -> RetrievalResult:
     """
     Full hybrid retrieval pipeline:
@@ -325,6 +339,7 @@ async def retrieve(
         tenant_id=ctx.tenant_id,
         top_k=top_k,
         filter_doc_ids=filter_doc_ids,
+        user_id=user_id,
     )
 
     # Step 3: Cross-encoder reranking (sync → executor)

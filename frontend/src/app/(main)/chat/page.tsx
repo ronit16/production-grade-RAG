@@ -180,8 +180,6 @@ function ChatArea({ sessionId }: { sessionId: string }) {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState('');
-  const bottomRef = useState<HTMLDivElement | null>(null);
-
   useEffect(() => { setMessages([]); setStatusText(''); }, [sessionId]);
 
   const scrollToBottom = useCallback((el: HTMLDivElement | null) => {

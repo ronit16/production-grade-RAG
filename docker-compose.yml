@@ -111,6 +111,9 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    networks:
+      - default
+      - rag_monitoring
     restart: unless-stopped
 
   worker:
@@ -139,6 +142,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        BACKEND_URL: http://api:8000
     ports:
       - "3001:3000"
     environment:
@@ -151,3 +156,10 @@ volumes:
   postgres_data:
   qdrant_data:
   minio_data:
+
+networks:
+  default:
+    name: rag_default
+  rag_monitoring:
+    name: rag_monitoring
+    external: true

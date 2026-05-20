@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.database import init_db
+from app.core.telemetry import setup_metrics, setup_tracing
 from app.services.retriever import ensure_collection
 
 settings = get_settings()
@@ -18,6 +19,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run DB migrations and Qdrant collection setup on startup."""
+    setup_tracing(app, settings)
     await init_db()
     await ensure_collection()
     yield
@@ -40,3 +42,4 @@ app.add_middleware(
 )
 
 app.include_router(v1_router)
+setup_metrics(app)

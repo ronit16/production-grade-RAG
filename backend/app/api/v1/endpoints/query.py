@@ -53,6 +53,7 @@ async def _sse_stream(
         id=uuid.UUID(query_id),
         tenant_id=ctx.tenant_id,
         session_id=uuid.UUID(req.session_id),
+        user_id=ctx.user_id,
         question=req.question,
     )
     db.add(db_query)
@@ -66,6 +67,7 @@ async def _sse_stream(
         ctx=ctx,
         history=state.get_history_for_prompt(),
         filter_doc_ids=req.filter_doc_ids,
+        user_id=str(ctx.user_id) if ctx.user_id else None,
     )
 
     yield f"event: retrieval\ndata: {json.dumps({'chunk_count': len(retrieval.chunks), 'rewritten_query': retrieval.rewritten_query})}\n\n"

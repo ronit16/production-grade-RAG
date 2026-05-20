@@ -1,0 +1,133 @@
+networks:
+  rag_monitoring:
+    name: rag_monitoring
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+
+services:
+  # ── Trace collection & routing ───────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector/otel-collector-config.yaml:/etc/otel/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"    # gRPC OTLP receiver  (FastAPI → here)
+      - "4318:4318"    # HTTP OTLP receiver
+      - "8888:8888"    # Collector self-metrics
+      - "8889:8889"    # Prometheus exporter
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks: [rag_monitoring]
+    restart: unless-stopped
+
+  # ── Distributed tracing UI ───────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # Jaeger UI   → http://localhost:16686
+      - "14317:4317"   # OTel gRPC   (otel-collector → jaeger)
+      - "14318:4318"   # OTel HTTP
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14269/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks: [rag_monitoring]
+    restart: unless-stopped
+
+  # ── Metrics storage ──────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+      - "--web.enable-admin-api"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"    # Prometheus UI → http://localhost:9090
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [rag_monitoring]
+    restart: unless-stopped
+
+  # ── Alert routing ────────────────────────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:latest
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"    # Alertmanager UI → http://localhost:9093
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [rag_monitoring]
+    restart: unless-stopped
+
+  # ── Dashboards ───────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3002:3000"    # Grafana UI → http://localhost:3002  (admin / admin)
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks: [rag_monitoring]
+    restart: unless-stopped
+
+  # ── Celery task monitor ──────────────────────────────────────────────────────
+  flower:
+    image: mher/flower:latest
+    command:
+      - celery
+      - --broker=amqp://guest:guest@rabbitmq:5672//
+      - flower
+      - --port=5555
+    ports:
+      - "5555:5555"    # Flower UI → http://localhost:5555
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5555/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_monitoring
+      - default        # must share network with rabbitmq
+    restart: unless-stopped

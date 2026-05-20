@@ -1,0 +1,82 @@
+groups:
+  - name: rag_slos
+    rules:
+      # SLO 1: Query endpoint error rate < 0.1% (5-minute window)
+      - alert: QueryHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{handler=~".*query.*", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{handler=~".*query.*"}[5m]))
+          ) > 0.001
+        for: 2m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "Query endpoint error rate exceeds 0.1% SLO"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      # SLO 2: Query P95 latency < 3s (10-minute window)
+      - alert: QueryHighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{handler=~".*query.*"}[10m]))
+            by (le)
+          ) > 3.0
+        for: 5m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: "Query P95 latency exceeds 3s SLO"
+          description: "P95 latency is {{ $value | humanizeDuration }}."
+
+      # SLO 3: Document ingestion failure rate < 5% (1-hour window)
+      - alert: DocumentIngestionHighFailureRate
+        expr: |
+          (
+            sum(increase(flower_task_runtime_seconds_count{name="ingest.process_document", state="FAILURE"}[1h]))
+            /
+            sum(increase(flower_task_runtime_seconds_count{name="ingest.process_document"}[1h]))
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          slo: ingestion_reliability
+        annotations:
+          summary: "Document ingestion failure rate > 5%"
+          description: "{{ $value | humanizePercentage }} of ingestion tasks failed in the last hour."
+
+      # SLO 4: API availability (health endpoint reachable)
+      - alert: APIUnavailable
+        expr: up{job="fastapi"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "FastAPI instance is unreachable"
+          description: "The FastAPI target has been down for more than 1 minute."
+
+  - name: rag_capacity
+    rules:
+      # Celery queue depth warning
+      - alert: CeleryQueueDepthHigh
+        expr: flower_events_total{type="task-received"} - flower_events_total{type="task-succeeded"} - flower_events_total{type="task-failed"} > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery ingest queue depth is high"
+          description: "Estimated queue depth is {{ $value }} tasks."
+
+      # Worker offline warning
+      - alert: CeleryWorkerOffline
+        expr: flower_workers_online == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No Celery workers are online"
+          description: "All Celery workers have gone offline for more than 2 minutes."

@@ -5,6 +5,7 @@ Provides async SQLAlchemy engine, session factory, and Redis pool.
 from typing import AsyncGenerator
 
 import redis.asyncio as aioredis
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -67,3 +68,9 @@ async def init_db() -> None:
     from app.models.db import Base  # import here to avoid circular deps
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text(
+            "ALTER TABLE queries ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id);"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_queries_user ON queries(user_id);"
+        ))

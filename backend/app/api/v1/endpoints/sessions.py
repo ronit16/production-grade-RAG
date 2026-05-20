@@ -57,5 +57,7 @@ async def close_session(
     state = await sm.get_session(str(session_id), str(ctx.tenant_id))
     if not state:
         raise HTTPException(status_code=404, detail="Session not found")
+    if state.user_id and ctx.user_id and state.user_id != str(ctx.user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     await sm.close_session(state)
     return SessionCloseResponse(closed=True)

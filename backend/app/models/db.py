@@ -219,11 +219,13 @@ class Query(Base):
     __table_args__ = (
         Index("ix_queries_tenant_created", "tenant_id", "created_at"),
         Index("ix_queries_session", "session_id"),
+        Index("ix_queries_user", "user_id"),
     )
 
     id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id  = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     question   = Column(Text, nullable=False)
     answer     = Column(Text, nullable=True)   # null while streaming
@@ -250,6 +252,7 @@ class Query(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     session = relationship("Session", back_populates="queries")
+    user    = relationship("User", foreign_keys=[user_id])
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,96 @@
+{
+  "title": "SLO Burn Rates",
+  "uid": "slo-burn-rates",
+  "tags": ["slo", "reliability"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "1m",
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Query Availability (SLO: 99.9%)",
+      "type": "gauge",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "(1 - sum(rate(http_requests_total{handler=~'.*query.*', status=~'5..'}[24h])) / sum(rate(http_requests_total{handler=~'.*query.*'}[24h]))) * 100",
+          "legendFormat": "Availability %"
+        }
+      ],
+      "options": {
+        "minValue": 99,
+        "maxValue": 100,
+        "thresholds": {
+          "steps": [
+            {"color": "red",    "value": 99.0},
+            {"color": "yellow", "value": 99.5},
+            {"color": "green",  "value": 99.9}
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Query P95 Latency (SLO: < 3s)",
+      "type": "gauge",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler=~'.*query.*'}[24h])) by (le))",
+          "legendFormat": "P95 Latency (s)"
+        }
+      ],
+      "options": {
+        "minValue": 0,
+        "maxValue": 10,
+        "thresholds": {
+          "steps": [
+            {"color": "green",  "value": 0},
+            {"color": "yellow", "value": 2},
+            {"color": "red",    "value": 3}
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Ingestion Reliability (SLO: 95%)",
+      "type": "gauge",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "(sum(increase(flower_events_total{type='task-succeeded'}[24h])) / (sum(increase(flower_events_total{type='task-succeeded'}[24h])) + sum(increase(flower_events_total{type='task-failed'}[24h])))) * 100",
+          "legendFormat": "Ingestion Success %"
+        }
+      ],
+      "options": {
+        "minValue": 90,
+        "maxValue": 100,
+        "thresholds": {
+          "steps": [
+            {"color": "red",    "value": 90},
+            {"color": "yellow", "value": 93},
+            {"color": "green",  "value": 95}
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Error Budget Remaining (Query Availability)",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "((0.999 - (sum(rate(http_requests_total{handler=~'.*query.*', status=~'5..'}[1h])) / sum(rate(http_requests_total{handler=~'.*query.*'}[1h])))) / 0.001) * 100",
+          "legendFormat": "Error Budget %"
+        }
+      ]
+    }
+  ]
+}

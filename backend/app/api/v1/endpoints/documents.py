@@ -89,6 +89,7 @@ async def ingest_document(
         s3_key=s3_key,
         content_type=file.content_type,
         embedding_model=settings.EMBEDDING_MODEL.value,
+        user_id=str(ctx.user_id) if ctx.user_id else None,
     )
 
     return DocumentUploadResponse(document_id=doc_id, status="processing", filename=file.filename)
