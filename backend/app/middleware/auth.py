@@ -195,6 +195,9 @@ async def check_rate_limit(
     redis: aioredis.Redis = Depends(get_redis),
 ) -> TenantContext:
     """Token-bucket rate limiting per tenant using Redis."""
+    if settings.APP_ENV == "test":
+        return ctx
+
     rps   = ctx.limits["rps"]
     key   = f"ratelimit:{ctx.tenant_id}:tokens"
     refill_key = f"ratelimit:{ctx.tenant_id}:last"

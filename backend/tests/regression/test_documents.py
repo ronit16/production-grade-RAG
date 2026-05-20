@@ -112,7 +112,7 @@ class TestDocumentStatus:
         suffix = uuid.uuid4().hex[:8]
         resp_b = await client.post("/v1/auth/register", json={
             "username": f"docsb_{suffix}",
-            "email":    f"docsb_{suffix}@regression.test",
+            "email":    f"docsb_{suffix}@example.com",
             "password": "ValidPass1234!",
         })
         headers_b = {"Authorization": f"Bearer {resp_b.json()['access_token']}"}

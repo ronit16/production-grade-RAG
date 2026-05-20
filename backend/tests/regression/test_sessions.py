@@ -79,7 +79,7 @@ class TestDeleteSession:
         # Register user B
         resp_b = await client.post("/v1/auth/register", json={
             "username": f"userb_{suffix}",
-            "email":    f"userb_{suffix}@regression.test",
+            "email":    f"userb_{suffix}@example.com",
             "password": "ValidPass1234!",
         })
         token_b = resp_b.json()["access_token"]

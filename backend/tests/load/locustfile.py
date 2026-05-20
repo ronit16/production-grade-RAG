@@ -34,7 +34,7 @@ class RAGUser(HttpUser):
     def on_start(self) -> None:
         """Called once per virtual user at spawn time."""
         suffix = uuid.uuid4().hex[:10]
-        self._email    = f"loadtest_{suffix}@loadtest.local"
+        self._email    = f"loadtest_{suffix}@example.com"
         self._username = f"loadtest_{suffix}"
         self._token: str = ""
         self._session_id: str = ""

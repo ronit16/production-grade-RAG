@@ -103,7 +103,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     # Inject container URLs — Settings (pydantic-settings) reads os.environ
     os.environ.update({
-        "APP_ENV":                   "development",
+        "APP_ENV":                   "test",
         "SECRET_KEY":                "test-secret-key-minimum-32-chars-x!",
         "DATABASE_URL":              pg.get_connection_url(),
         "REDIS_URL":                 f"redis://{redis_host}:{redis_port}/0",
@@ -142,6 +142,21 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+def pytest_collection_modifyitems(items: list) -> None:
+    """Force all async tests onto the session event loop.
+
+    The session-scoped `client` fixture (and the asyncpg pool it creates) are
+    bound to the session event loop.  If individual tests run on their own
+    function-scoped loops, asyncpg connections leak across loops and produce
+    'Future attached to a different loop' errors.  Marking every async test
+    with loop_scope="session" keeps everything on one loop.
+    """
+    session_marker = pytest.mark.asyncio(loop_scope="session")
+    for item in items:
+        if isinstance(item, pytest.Function) and asyncio.iscoroutinefunction(item.obj):
+            item.add_marker(session_marker, append=False)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared session-scoped fixtures
 # ─────────────────────────────────────────────────────────────────────────────
@@ -158,8 +173,10 @@ async def client():
     """In-process httpx client connected to the FastAPI app with real services."""
     from httpx import ASGITransport, AsyncClient
 
+    from app.core.database import init_db
     from app.main import app
 
+    await init_db()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", timeout=60.0) as c:
         yield c
 

@@ -50,16 +50,16 @@ def mocked_retriever():
 
 @pytest.fixture
 def mocked_generator():
-    """Return a minimal SSE stream from the generator."""
+    """Return a minimal GenerationChunk stream from the generator."""
+    from app.services.generator import GenerationChunk
+
     async def _fake_stream(*args, **kwargs):
-        yield "event: delta\ndata: " + json.dumps({"text": "Hello world"}) + "\n\n"
-        yield "event: done\ndata: " + json.dumps({
-            "sources": [],
-            "query_id": str(uuid.uuid4()),
-        }) + "\n\n"
+        qid = str(uuid.uuid4())
+        yield GenerationChunk(delta="Hello world", done=False, query_id=qid)
+        yield GenerationChunk(delta="", done=True, sources=[], query_id=qid, usage={})
 
     with patch("app.api.v1.endpoints.query.generate_stream") as m:
-        m.return_value = _fake_stream()
+        m.side_effect = _fake_stream
         yield m
 
 

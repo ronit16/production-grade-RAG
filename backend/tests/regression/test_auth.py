@@ -8,7 +8,7 @@ def _unique_user():
     suffix = uuid.uuid4().hex[:8]
     return {
         "username": f"testauth_{suffix}",
-        "email":    f"testauth_{suffix}@regression.test",
+        "email":    f"testauth_{suffix}@example.com",
         "password": "ValidPass1234!",
     }
 
@@ -46,7 +46,7 @@ class TestRegister:
     async def test_register_duplicate_username_returns_400(self, client):
         user = _unique_user()
         await client.post("/v1/auth/register", json=user)
-        dup = {**user, "email": f"other_{uuid.uuid4().hex[:6]}@regression.test"}
+        dup = {**user, "email": f"other_{uuid.uuid4().hex[:6]}@example.com"}
         resp = await client.post("/v1/auth/register", json=dup)
         assert resp.status_code == 400
 
@@ -94,7 +94,7 @@ class TestLogin:
 
     async def test_login_unknown_email_returns_401(self, client):
         resp = await client.post("/v1/auth/login", json={
-            "email": f"nobody_{uuid.uuid4().hex[:8]}@regression.test",
+            "email": f"nobody_{uuid.uuid4().hex[:8]}@example.com",
             "password": "SomePassword123!",
         })
         assert resp.status_code == 401

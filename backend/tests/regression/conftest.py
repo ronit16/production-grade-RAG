@@ -11,7 +11,7 @@ async def registered_user(client):
     suffix = uuid.uuid4().hex[:8]
     payload = {
         "username": f"testregr_{suffix}",
-        "email":    f"testregr_{suffix}@regression.test",
+        "email":    f"testregr_{suffix}@example.com",
         "password": "Regression1234!",
     }
     resp = await client.post("/v1/auth/register", json=payload)

@@ -132,7 +132,7 @@ async def generate_stream(
     _, sources   = build_context(req.chunks)
 
     # Resolve model (tenant override > env default)
-    model = ctx.llm_config.get("model") or settings.PRIMARY_LLM.value
+    model = ctx.llm_config.get("model") or settings.PRIMARY_LLM
     temp  = ctx.llm_config.get("temperature", 0.1)
 
     start_ms     = time.monotonic()
@@ -148,7 +148,7 @@ async def generate_stream(
             stream=True,
             timeout=settings.LLM_TIMEOUT_SECONDS,
             # LiteLLM fallback — automatically tries FALLBACK_LLM on error
-            fallbacks=[settings.FALLBACK_LLM.value],
+            fallbacks=[settings.FALLBACK_LLM],
         )
 
         async for chunk in stream:
