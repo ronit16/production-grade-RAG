@@ -161,5 +161,4 @@ networks:
   default:
     name: rag_default
   rag_monitoring:
-    name: rag_monitoring
-    external: true
+    name: rag_monitoring     # created here; monitoring compose joins it as external

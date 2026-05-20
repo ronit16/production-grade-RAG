@@ -1,7 +1,7 @@
 networks:
   rag_monitoring:
     name: rag_monitoring
-    driver: bridge
+    external: true           # created by docker-compose.yml; join it here
 
 volumes:
   prometheus_data:
