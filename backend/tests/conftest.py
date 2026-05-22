@@ -101,7 +101,15 @@ def pytest_configure(config: pytest.Config) -> None:
     redis_host = redis_c.get_container_host_ip()
     redis_port = redis_c.get_exposed_port(6379)
 
-    # Inject container URLs — Settings (pydantic-settings) reads os.environ
+    # Inject container URLs — Settings (pydantic-settings) reads os.environ.
+    # Preserve any real API keys already exported in the shell so that slow
+    # evaluation tests (which need real LLM calls) work without modification.
+    def _keep_or_stub(env_var: str, stub: str, stub_prefix: str = "") -> str:
+        val = os.environ.get(env_var, "")
+        if val and (not stub_prefix or not val.startswith(stub_prefix)):
+            return val
+        return stub
+
     os.environ.update({
         "APP_ENV":                   "test",
         "SECRET_KEY":                "test-secret-key-minimum-32-chars-x!",
@@ -113,12 +121,11 @@ def pytest_configure(config: pytest.Config) -> None:
         "MINIO_SECRET_KEY":          "minioadmin",
         "CELERY_BROKER_URL":         f"amqp://guest:guest@{rmq_host}:{rmq_port}//",
         "CELERY_RESULT_BACKEND":     f"redis://{redis_host}:{redis_port}/1",
-        "OPENAI_API_KEY":            "sk-test-fake-key-for-regression",
-        "GEMINI_API_KEY":            "test-fake-gemini-key",
+        "OPENAI_API_KEY":            _keep_or_stub("OPENAI_API_KEY", "sk-test-fake-key-for-regression", "sk-test"),
+        "GEMINI_API_KEY":            _keep_or_stub("GEMINI_API_KEY", "test-fake-gemini-key"),
         "JWT_PRIVATE_KEY_PATH":      "secrets/jwt_private.pem",
         "JWT_PUBLIC_KEY_PATH":       "secrets/jwt_public.pem",
         "ALLOWED_ORIGINS":           '["http://test"]',
-        "OTEL_ENABLED":              "false",
         "LOG_LEVEL":                 "WARNING",
     })
 
@@ -175,8 +182,10 @@ async def client():
 
     from app.core.database import init_db
     from app.main import app
+    from app.services.retriever import ensure_collection
 
     await init_db()
+    await ensure_collection()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", timeout=60.0) as c:
         yield c
 

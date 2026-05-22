@@ -1,6 +1,7 @@
 # ── Web framework ──────────────────────────────────────────────────────────────
 fastapi
 uvicorn[standard]
+gunicorn                  # production process manager; spawns uvicorn workers via exec (fork-safe)
 python-multipart          # required for FastAPI file upload (UploadFile)
 
 # ── Database ───────────────────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ qdrant-client             # Qdrant async/sync Python client
 fastembed                 # BM25 sparse embeddings (Qdrant/bm25 model)
 
 # ── Reranking ─────────────────────────────────────────────────────────────────
-sentence-transformers     # cross-encoder reranker (MiniLM)
+# sentence-transformers removed — reranker replaced with fastembed TextCrossEncoder (ONNX, no PyTorch/CUDA)
 
 # ── Document parsing ───────────────────────────────────────────────────────────
 unstructured[all-docs]    # PDF, DOCX, HTML, MD parsing
@@ -46,8 +47,6 @@ boto3                     # S3 upload/download
 
 # ── Async task queue ──────────────────────────────────────────────────────────
 celery[rabbitmq]          # async worker
-flower                    # Celery task monitoring UI
-
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest
 pytest-asyncio
@@ -57,14 +56,6 @@ testcontainers[postgres,redis]  # real containers in regression tests
 respx                     # httpx-level mock for OpenAI/Gemini HTTP calls
 ragas                     # RAG evaluation metrics
 datasets                  # HuggingFace datasets (used by RAGAS)
-
-# ── Observability ─────────────────────────────────────────────────────────────
-opentelemetry-sdk
-opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-sqlalchemy
-opentelemetry-instrumentation-redis
-opentelemetry-exporter-otlp-proto-grpc
-prometheus-fastapi-instrumentator  # exposes /metrics endpoint
 
 # ── Load testing ──────────────────────────────────────────────────────────────
 locust

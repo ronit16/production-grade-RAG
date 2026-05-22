@@ -1,6 +1,6 @@
 # Production RAG System
 
-A production-grade Retrieval-Augmented Generation (RAG) system with multi-tenant isolation, hybrid vector search, streaming responses, full observability, and a ChatGPT-style Next.js frontend.
+A production-grade Retrieval-Augmented Generation (RAG) system with multi-tenant isolation, hybrid vector search, streaming responses, and a ChatGPT-style Next.js frontend.
 
 ---
 
@@ -13,7 +13,7 @@ Browser / API Client
   Next.js Frontend  (port 3001)
        │
        ▼
-FastAPI  ──── CORSMiddleware  ──── Prometheus /metrics
+FastAPI  ──── CORSMiddleware
   │
   ├── Auth Middleware  (RS256 JWT  |  API key → TenantContext)
   ├── Rate Limiter     (token-bucket per tenant via Redis)
@@ -32,7 +32,7 @@ FastAPI  ──── CORSMiddleware  ──── Prometheus /metrics
   │           │
   │           ├── 1. Query rewrite        (gpt-4o-mini)
   │           ├── 2. Hybrid search        (Qdrant: dense + sparse → native RRF)
-  │           ├── 3. Cross-encoder rerank (MiniLM)
+  │           ├── 3. Cross-encoder rerank (fastembed ONNX — no PyTorch/CUDA)
   │           └── 4. LLM generation       (LiteLLM: GPT-4o → Gemini fallback)
   │
   ├── GET /v1/health
@@ -40,16 +40,11 @@ FastAPI  ──── CORSMiddleware  ──── Prometheus /metrics
   └── GET /v1/health/detailed   → probes all 5 backing services
 
 Background
-  └── Celery worker  (RabbitMQ broker)
+  └── Celery worker  (RabbitMQ broker, 8 concurrent processes)
         └── parse (Unstructured) → chunk → embed dense (OpenAI)
                                           + embed sparse (fastembed BM25)
                                           → upsert to Qdrant
                                           → persist metadata to PostgreSQL
-
-Observability  (optional, separate compose file)
-  └── OTel Collector → Jaeger (traces) + Prometheus → Grafana (dashboards)
-                     → Alertmanager (SLO alerts)
-  └── Flower (Celery task monitor)
 ```
 
 ---
@@ -62,14 +57,12 @@ Observability  (optional, separate compose file)
 | **Dense search** | OpenAI `text-embedding-3-large` (1536-dim) | State-of-the-art retrieval accuracy |
 | **Sparse search** | BM25 via `fastembed` (`Qdrant/bm25`) | Exact-match, acronyms, rare terms — no separate search cluster needed |
 | **Hybrid fusion** | Qdrant native `Prefetch + Fusion.RRF` | Zero extra infrastructure; equal-weight RRF in a single query call |
-| **Reranker** | `cross-encoder/ms-marco-MiniLM-L-6-v2` | ~40% precision lift over ANN-only; runs on CPU |
+| **Reranker** | `cross-encoder/ms-marco-MiniLM-L-6-v2` via `fastembed.TextCrossEncoder` (ONNX) | Same MiniLM model, ~40% precision lift; no PyTorch/CUDA — saves ~1.3 GB from image |
 | **Session store** | Redis (hot) + PostgreSQL (cold) | Sub-ms reads for active sessions; durable audit trail |
 | **Task queue** | Celery + RabbitMQ | Reliable async ingestion; horizontal worker scaling |
 | **Auth** | RS256 JWT + API keys | Stateless; no DB hit on every request |
 | **LLM routing** | LiteLLM | Provider-agnostic; automatic fallback (GPT-4o → Gemini) |
 | **Streaming** | Server-Sent Events (SSE) | Works with any HTTP client |
-| **Tracing** | OpenTelemetry → Jaeger | Distributed traces across FastAPI, SQLAlchemy, Redis |
-| **Metrics** | Prometheus + Grafana | Request rate, latency histograms, SLO burn rates |
 | **Testing** | Testcontainers | Regression tests spin up real containers — no mocks, no manual setup |
 
 ---
@@ -80,7 +73,7 @@ Observability  (optional, separate compose file)
 production_grade_RAG/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                        # App factory: middleware, lifespan, OTel, metrics
+│   │   ├── main.py                        # App factory: middleware, lifespan, routers
 │   │   ├── api/
 │   │   │   ├── deps.py                    # Shared dependency aliases (DBSession, RedisClient)
 │   │   │   └── v1/
@@ -94,7 +87,6 @@ production_grade_RAG/
 │   │   ├── core/
 │   │   │   ├── config.py                  # Pydantic settings (all env vars)
 │   │   │   ├── database.py                # Async SQLAlchemy engine + Redis pool + init_db
-│   │   │   ├── telemetry.py               # OTel tracing + Prometheus /metrics setup
 │   │   │   └── exceptions.py
 │   │   ├── middleware/
 │   │   │   └── auth.py                    # JWT/API-key auth, TenantContext, rate limiting
@@ -133,27 +125,12 @@ production_grade_RAG/
 │   │   ├── load/
 │   │   │   └── locustfile.py              # 50-user step ramp-up load test
 │   │   └── evaluation/
-│   │       └── test_ragas.py              # RAGAS golden-set evaluation
+│   │       ├── conftest.py                # Auth fixtures for evaluation tests
+│   │       ├── golden_dataset.py          # 5-sample golden Q&A set + metric thresholds
+│   │       └── test_ragas.py              # RAGAS golden-set evaluation (7 test classes)
 │   ├── pytest.ini
 │   └── requirements.txt
 ├── frontend/                              # Next.js 14 ChatGPT-style UI
-├── monitoring/                            # Full observability stack
-│   ├── docker-compose.monitoring.yml      # OTel Collector, Jaeger, Prometheus,
-│   │                                      # Alertmanager, Grafana, Flower
-│   ├── otel-collector/
-│   │   └── otel-collector-config.yaml
-│   ├── prometheus/
-│   │   ├── prometheus.yml
-│   │   └── alert_rules.yml                # 6 SLO-based alert rules
-│   ├── alertmanager/
-│   │   └── alertmanager.yml
-│   └── grafana/
-│       └── provisioning/
-│           ├── datasources/               # Prometheus + Jaeger auto-provisioned
-│           └── dashboards/               # 3 pre-built dashboards (JSON)
-│               ├── rag_overview.json
-│               ├── celery_workers.json
-│               └── slo_burn_rates.json
 ├── docker-compose.yml                     # Application stack
 └── .env.example
 ```
@@ -193,6 +170,8 @@ docker compose up --build -d
 
 All services start with health checks. The API is ready at **http://localhost:8000** once `docker compose ps` shows all services as `healthy`.
 
+The API runs under **Gunicorn + 4 Uvicorn workers** (`gunicorn -k uvicorn.workers.UvicornWorker -w 4`). All async FastAPI features (SSE streaming, WebSockets, async DB/Redis) work identically — Gunicorn is purely the process manager.
+
 > **Swagger UI** (development mode only): http://localhost:8000/docs
 
 ### 4 — Verify
@@ -216,55 +195,6 @@ curl http://localhost:8000/v1/health/detailed
 | RabbitMQ management | http://localhost:15672 (guest/guest) |
 | Qdrant | http://localhost:6333 |
 | MinIO console | http://localhost:9003 (minioadmin/minioadmin) |
-
----
-
-## Observability stack (optional)
-
-Start the monitoring stack alongside the application:
-
-```bash
-docker compose \
-  -f docker-compose.yml \
-  -f monitoring/docker-compose.monitoring.yml \
-  up -d
-```
-
-| Service | URL | Credentials |
-|---|---|---|
-| Grafana | http://localhost:3002 | admin / admin |
-| Prometheus | http://localhost:9090 | — |
-| Jaeger | http://localhost:16686 | — |
-| Alertmanager | http://localhost:9093 | — |
-| Flower (Celery) | http://localhost:5555 | — |
-
-Enable OTel tracing in `.env`:
-
-```env
-OTEL_ENABLED=true
-OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-```
-
-### Pre-built Grafana dashboards
-
-| Dashboard | What it shows |
-|---|---|
-| **RAG API Overview** | Request rate, P50/P95/P99 latency, error rate by status code, API uptime |
-| **Celery Workers** | Online workers, task success/failure/retry rates, ingestion duration (p95) |
-| **SLO Burn Rates** | Rolling 24h SLO compliance gauges, error budget remaining % |
-
-### Alert rules
-
-| Alert | Condition | Severity |
-|---|---|---|
-| `QueryHighErrorRate` | Error rate > 0.1% over 5 min | critical |
-| `QueryHighP95Latency` | P95 > 3 s over 10 min | warning |
-| `DocumentIngestionHighFailureRate` | Failure rate > 5% in 1 h | warning |
-| `APIUnavailable` | FastAPI target down for 1 min | critical |
-| `CeleryQueueDepthHigh` | Queue depth > 100 for 5 min | warning |
-| `CeleryWorkerOffline` | No workers online for 2 min | critical |
-
-Configure alert destinations (email/Slack) in `monitoring/alertmanager/alertmanager.yml`.
 
 ---
 
@@ -416,7 +346,7 @@ Dense embedding              Sparse embedding
        Fusion.RRF  (Qdrant native — single round-trip)
               │
               ▼
-   Cross-encoder rerank  (MiniLM, top rerank_top_k results)
+   Cross-encoder rerank  (fastembed ONNX MiniLM, top rerank_top_k results)
               │
               ▼
      Final chunks → LLM context → streaming SSE response
@@ -447,8 +377,6 @@ Dense embedding              Sparse embedding
 | `JWT_PUBLIC_KEY_PATH` | ✓ | `/secrets/jwt_public.pem` | RS256 public key |
 | `JWT_PRIVATE_KEY_PATH` | ✓ | `/secrets/jwt_private.pem` | RS256 private key |
 | `APP_ENV` | | `production` | `development` / `staging` / `production` |
-| `OTEL_ENABLED` | | `false` | Enable OpenTelemetry tracing |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | | `http://otel-collector:4317` | OTel collector gRPC endpoint |
 
 See [.env.example](.env.example) for the full list.
 
@@ -476,10 +404,8 @@ See [.env.example](.env.example) for the full list.
 - [ ] `APP_ENV=production` set (disables `/docs` Swagger UI)
 - [ ] Qdrant collection created automatically on first startup
 - [ ] MinIO bucket `rag-documents` created (handled by `minio-init` service)
-- [ ] Redis `maxmemory-policy allkeys-lru` configured
-- [ ] OTel + Grafana stack deployed and dashboards verified
-- [ ] Alertmanager email/Slack webhook configured in `alertmanager.yml`
-- [ ] `SENTRY_DSN` set for exception tracking
+- [x] Redis `maxmemory 512mb` + `allkeys-lru` configured (set in `docker-compose.yml`)
+- [x] Container resource limits set for all services (CPU + memory in `docker-compose.yml`)
 - [ ] Regression tests green: `pytest tests/regression/ -v -m "not slow"`
 - [ ] Load test passed at 2× expected peak RPS
 - [ ] Cross-tenant isolation smoke test run in staging
@@ -488,9 +414,9 @@ See [.env.example](.env.example) for the full list.
 
 ---
 
-## Monitoring SLOs
+## Performance targets
 
-| SLO | Target |
+| Metric | Target |
 |---|---|
 | Query P50 latency | < 2 s |
 | Query P95 latency | < 3 s |
@@ -501,12 +427,43 @@ See [.env.example](.env.example) for the full list.
 
 ---
 
+## Per-container capacity
+
+Each service runs as a single Docker container. These are the practical concurrency ceilings and the threshold at which a second container should be considered.
+
+| Service | Single-container ceiling | Primary bottleneck | Scale-out trigger |
+|---|---|---|---|
+| **API** | ~200 concurrent requests | DB pool: 4 workers × 15 = 60 connections | CPU > 70% or DB pool > 75% utilized |
+| **Worker** | 8 parallel ingest jobs | Celery concurrency (`-c 8`) | RabbitMQ `ingest` queue depth > 5 |
+| **PostgreSQL** | 200 connections (`max_connections=200`) | Disk I/O on large datasets | > 160 active connections (80%) |
+| **Redis** | ~512 MB cached data | Memory limit (`--maxmemory 512mb`) with LRU eviction | Memory usage > 80% |
+| **Qdrant** | CPU/RAM bound (~50–100 concurrent searches) | Index size × CPU cores | CPU > 80% sustained |
+| **MinIO** | Disk I/O bound; 50+ concurrent uploads fine | Disk throughput | Disk throughput saturation |
+
+> **Note:** PostgreSQL, Redis, Qdrant, and MinIO are stateful singletons. Scaling them requires their own HA strategies (PgBouncer + Patroni, Redis Sentinel, Qdrant distributed mode, MinIO distributed mode) — not `docker compose --scale`.
+
+### Docker Compose resource limits
+
+All containers have explicit CPU and memory limits defined in `docker-compose.yml`:
+
+| Service | CPU limit | Memory limit | CPU reserved | Memory reserved |
+|---|---|---|---|---|
+| `api` | 2.0 | 2 GB | 0.5 | 512 MB |
+| `worker` | 4.0 | 8 GB | 1.0 | 2 GB |
+| `db` | 1.0 | 1 GB | 0.25 | 256 MB |
+| `redis` | 0.5 | 768 MB | 0.1 | 128 MB |
+| `qdrant` | 2.0 | 4 GB | 0.5 | 1 GB |
+| `minio` | 1.0 | 1 GB | 0.25 | 256 MB |
+| `rabbitmq` | 1.0 | 1 GB | 0.25 | 256 MB |
+
+---
+
 ## Scaling notes
 
 | Component | Strategy |
 |---|---|
-| **API** | Stateless → horizontal HPA on CPU/memory |
-| **Workers** | Scale on RabbitMQ queue depth via KEDA |
+| **API** | Stateless; 4 Gunicorn workers per container → horizontal scale with a load balancer (e.g. Traefik) when CPU > 70% |
+| **Workers** | Scale on RabbitMQ queue depth; use KEDA in Kubernetes or `docker compose up --scale worker=N` |
 | **Qdrant** | Distributed mode with sharding for > 10M vectors; Qdrant Cloud for managed |
-| **PostgreSQL** | Read replicas for analytics; PgBouncer for connection pooling |
+| **PostgreSQL** | Add PgBouncer at > 3 API replicas (pool × workers × replicas would exceed `max_connections=200`); read replicas for analytics |
 | **Redis** | Cluster mode for > 10k concurrent sessions |

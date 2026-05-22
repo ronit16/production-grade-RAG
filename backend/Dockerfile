@@ -17,4 +17,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Default: API server. Override CMD in docker-compose for the worker.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["gunicorn", "app.main:app", \
+     "-k", "uvicorn.workers.UvicornWorker", \
+     "-w", "4", \
+     "--bind", "0.0.0.0:8000", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5"]

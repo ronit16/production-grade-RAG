@@ -1,6 +1,6 @@
 """
 Production RAG System - Hybrid Retrieval Service
-Dense (OpenAI) + Sparse (BM25 via fastembed) → Qdrant native RRF fusion → Cross-encoder rerank
+Dense (OpenAI) + Sparse (BM25 via fastembed) → Qdrant native RRF fusion → ONNX cross-encoder rerank
 
 Architecture:
   - One Qdrant collection shared across all tenants, isolated by `tenant_id` payload filter
@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from fastembed import SparseTextEmbedding
+from fastembed.rerank.cross_encoder import TextCrossEncoder
 from openai import AsyncOpenAI
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
@@ -32,8 +33,6 @@ from qdrant_client.models import (
     SparseVectorParams,
     VectorParams,
 )
-from sentence_transformers import CrossEncoder
-
 from app.core.config import get_settings
 from app.middleware.auth import TenantContext
 
@@ -71,7 +70,7 @@ class RetrievalResult:
 _oai_client:     Optional[AsyncOpenAI]         = None
 _qdrant_client:  Optional[AsyncQdrantClient]   = None
 _sparse_model:   Optional[SparseTextEmbedding] = None
-_cross_encoder:  Optional[CrossEncoder]        = None
+_cross_encoder:  Optional[TextCrossEncoder]    = None
 
 
 def _get_openai() -> AsyncOpenAI:
@@ -100,10 +99,11 @@ def _get_sparse_model() -> SparseTextEmbedding:
     return _sparse_model
 
 
-def _get_cross_encoder() -> CrossEncoder:
+def _get_cross_encoder() -> TextCrossEncoder:
     global _cross_encoder
     if not _cross_encoder:
-        _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        # ONNX version of the same MiniLM cross-encoder — no PyTorch/CUDA required
+        _cross_encoder = TextCrossEncoder(model_name="cross-encoder/ms-marco-MiniLM-L-6-v2")
     return _cross_encoder
 
 
@@ -299,8 +299,8 @@ def rerank(query: str, candidates: list[dict], top_k: int) -> list[dict]:
         return []
 
     encoder = _get_cross_encoder()
-    pairs   = [(query, c["text"]) for c in candidates]
-    scores  = encoder.predict(pairs, apply_softmax=True, show_progress_bar=False)
+    docs    = [c["text"] for c in candidates]
+    scores  = list(encoder.rerank(query, docs))
 
     for candidate, score in zip(candidates, scores):
         candidate["rerank_score"] = float(score)

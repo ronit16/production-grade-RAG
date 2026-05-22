@@ -27,8 +27,8 @@ class Settings(BaseSettings):
 
     # ── Database ───────────────────────────────────────────────────────────
     DATABASE_URL: str        = Field(...)      # postgres://user:pass@host/db
-    DATABASE_POOL_SIZE: int  = 20
-    DATABASE_MAX_OVERFLOW: int = 40
+    DATABASE_POOL_SIZE: int  = 5    # per-worker pool; 4 workers × 5 = 20 idle connections
+    DATABASE_MAX_OVERFLOW: int = 10  # per-worker burst; 4 workers × 10 = 40 max, total 60 ≤ pg max_connections=200
     DB_ECHO_SQL: bool        = False
 
     # ── Redis ──────────────────────────────────────────────────────────────
@@ -87,11 +87,8 @@ class Settings(BaseSettings):
     DEFAULT_RATE_LIMIT_RPS: int = 10     # requests per second per tenant
     DEFAULT_DAILY_TOKEN_LIMIT: int = 500_000
 
-    # ── Observability ──────────────────────────────────────────────────────
-    OTEL_ENABLED: bool       = False
-    OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://otel-collector:4317"
+    # ── Logging ────────────────────────────────────────────────────────────
     LOG_LEVEL: str           = "INFO"
-    SENTRY_DSN: Optional[str] = None
 
     @field_validator("APP_ENV")
     @classmethod
