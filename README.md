@@ -99,7 +99,8 @@ production_grade_RAG/
 │   │   ├── services/
 │   │   │   ├── retriever.py               # Hybrid retrieval: dense+sparse → RRF → rerank
 │   │   │   ├── generator.py               # LLM streaming (LiteLLM, citations, fallback)
-│   │   │   └── session.py                 # SessionManager: Redis ↔ PostgreSQL lifecycle
+│   │   │   ├── session.py                 # SessionManager: Redis ↔ PostgreSQL lifecycle
+│   │   │   └── evaluator.py               # RAGAS evaluation pipeline (8 metrics)
 │   │   └── workers/
 │   │       ├── celery_app.py
 │   │       └── ingestion.py               # Celery task: parse → embed → Qdrant → DB
@@ -252,15 +253,26 @@ Load shape: warm-up (10 users) → ramp (25) → peak (50) → hold.
 ### RAGAS evaluation
 
 ```bash
+# Fast unit tests — no containers, no API key required
+pytest tests/evaluation/ --no-containers -v
+
+# Full live evaluation — requires a real OPENAI_API_KEY and running stack
+export OPENAI_API_KEY=sk-...
 pytest tests/evaluation/ -m slow -v
 ```
 
-| Metric | Minimum |
-|---|---|
-| `faithfulness` | 0.80 |
-| `answer_relevancy` | 0.75 |
-| `context_precision` | 0.70 |
-| `context_recall` | 0.75 |
+The evaluation pipeline (`app/services/evaluator.py`) runs the full retrieve + generate cycle against a 5-sample golden dataset and scores 8 metric categories:
+
+| Metric | Threshold | Method |
+|---|---|---|
+| `faithfulness_score` | ≥ 0.80 | RAGAS `faithfulness` |
+| `context_precision` | ≥ 0.70 | RAGAS `context_precision` |
+| `context_recall` | ≥ 0.75 | RAGAS `context_recall` |
+| `relevancy_score` | ≥ 0.75 | RAGAS `answer_relevancy` |
+| `answer_quality` | ≥ 0.65 | RAGAS `answer_correctness` |
+| `hallucination_rate` | ≤ 0.20 | `1 − faithfulness_score` |
+| `retrieval_ratio` | ≥ 0.10 | `reranked_count / candidate_count` |
+| `context_awareness` | ≥ 0.70 | `gpt-4o-mini` LLM judge (multi-turn only) |
 
 ---
 

@@ -48,6 +48,23 @@ pytest tests/regression/ --cov=app --cov-report=html
 
 `pytest.ini` defaults: `asyncio_mode = auto`, 60 s timeout per test, `-m "not slow"` filter applied automatically.
 
+### Evaluation tests
+
+```bash
+cd backend
+
+# Fast — 24 unit/mock tests, no containers or API key required
+pytest tests/evaluation/ --no-containers -v
+
+# Live — real retrieve + generate + RAGAS scoring (requires real OPENAI_API_KEY)
+export OPENAI_API_KEY=sk-...your-real-key...
+pytest tests/evaluation/ -m slow -v
+```
+
+The live test auto-skips if `OPENAI_API_KEY` is absent or starts with `sk-test`.
+Testcontainers preserves a real key already exported in the shell — it only injects
+the `sk-test-fake` placeholder when no real key is present.
+
 ### Load tests (requires running stack)
 
 ```bash
@@ -110,6 +127,20 @@ retrieve(question, ctx)
 ```
 
 All four singletons (`_oai_client`, `_qdrant_client`, `_sparse_model`, `_cross_encoder`) are lazy-loaded and module-global — they survive across requests within a Gunicorn worker process.
+
+### Evaluation pipeline (services/evaluator.py)
+
+```
+EvaluationPipeline(ctx).run_dataset(samples)
+  Phase 1: for each EvalSample → retrieve() + generate_sync() → answer, RetrievalResult, usage
+  Phase 2: single RAGAS evaluate() call for full batch (faithfulness, relevancy, precision,
+           recall, correctness) — run in executor so it doesn't block the event loop
+  Phase 3: derive hallucination_rate (1−faithfulness), retrieval_ratio (reranked/candidates),
+           context_awareness (gpt-4o-mini LLM judge for multi-turn; 1.0 for single-turn)
+  → list[EvalResult]  +  EvaluationPipeline.aggregate(results) → dict[metric, float]
+```
+
+`EvalResult` carries all 8 metric fields plus `retrieval_ms`, `generation_ms`, `total_ms`, and token counts. RAGAS imports are guarded with `try/except ImportError` so the service loads cleanly in environments where `ragas` is not installed.
 
 ### Tenant isolation — where it is enforced
 
