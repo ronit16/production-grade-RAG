@@ -68,9 +68,3 @@ async def init_db() -> None:
     from app.models.db import Base  # import here to avoid circular deps
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(text(
-            "ALTER TABLE queries ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id);"
-        ))
-        await conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS ix_queries_user ON queries(user_id);"
-        ))
