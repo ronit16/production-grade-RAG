@@ -4,9 +4,14 @@ All settings loaded from environment variables with Pydantic validation.
 """
 from enum import Enum
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 from pydantic import AnyUrl, Field, field_validator
 from pydantic_settings import BaseSettings
+
+# Resolve .env relative to this file so it works regardless of CWD.
+# On host: <project-root>/.env  |  In Docker: /.env (missing → ignored)
+_ENV_FILE = str(Path(__file__).resolve().parents[3] / ".env")
 
 
 class EmbeddingModel(str, Enum):
@@ -99,7 +104,7 @@ class Settings(BaseSettings):
         return v
 
     class Config:
-        env_file = ".env"
+        env_file = _ENV_FILE
         case_sensitive = True
 
 

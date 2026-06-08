@@ -50,9 +50,9 @@ class TestHybridSearch:
         call_kwargs = mock_client.query_points.call_args[1]
         # Two prefetch branches (dense + sparse)
         assert len(call_kwargs["prefetch"]) == 2
-        # Fusion.RRF applied at merge
+        # Fusion.RRF applied at merge (newer qdrant-client wraps it in FusionQuery)
         from qdrant_client.models import Fusion
-        assert call_kwargs["query"] == Fusion.RRF
+        assert call_kwargs["query"].fusion == Fusion.RRF
         # Correct number of results mapped
         assert len(results) == 1
         assert results[0]["chunk_id"] == "chunk-1"

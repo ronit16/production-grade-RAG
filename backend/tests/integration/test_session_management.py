@@ -28,7 +28,7 @@ class TestSessionManagement:
         mock_redis = AsyncMock()
         mock_redis.get = AsyncMock(return_value=None)
 
-        mock_result = AsyncMock()
+        mock_result = MagicMock()          # synchronous — SQLAlchemy result methods are not async
         mock_result.scalar_one_or_none.return_value = None
         mock_db = AsyncMock()
         mock_db.execute = AsyncMock(return_value=mock_result)
