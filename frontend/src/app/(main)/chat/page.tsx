@@ -1,27 +1,24 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { useAuth } from '@/lib/auth';
 import { listSessions, createSession, deleteSession, streamQuery } from '@/lib/api';
+import AppShell from '@/components/AppShell';
 import CitationCard from '@/components/CitationCard';
 import type { SessionListItem, ChatMessage, QuerySource } from '@/types/rag';
 
-// ── Session sidebar ───────────────────────────────────────────────────────────
+// ── Session list (right panel) ────────────────────────────────────────────────
 
 function timeGroup(dateStr: string): string {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Yesterday';
   if (diff <= 7) return 'Previous 7 days';
   return 'Older';
 }
 
-function Sidebar({
+function SessionPanel({
   sessions,
   activeId,
   onSelect,
@@ -34,9 +31,6 @@ function Sidebar({
   onCreate: () => void;
   onDelete: (id: string) => void;
 }) {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-
   const grouped = sessions.reduce<Record<string, SessionListItem[]>>((acc, s) => {
     const g = timeGroup(s.last_active || s.created_at);
     (acc[g] ??= []).push(s);
@@ -45,9 +39,9 @@ function Sidebar({
   const ORDER = ['Today', 'Yesterday', 'Previous 7 days', 'Older'];
 
   return (
-    <aside className="w-64 flex flex-col h-full bg-[#171717] border-r border-white/5">
-      {/* New chat */}
-      <div className="p-3 border-b border-white/5">
+    <>
+      {/* New chat button */}
+      <div className="p-3 border-b border-white/5 flex-shrink-0">
         <button
           onClick={onCreate}
           className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-white/5 transition-colors"
@@ -66,9 +60,7 @@ function Sidebar({
       <div className="flex-1 overflow-y-auto py-2 px-2 space-y-4">
         {ORDER.filter((g) => grouped[g]?.length).map((group) => (
           <div key={group}>
-            <p className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {group}
-            </p>
+            <p className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">{group}</p>
             {grouped[group].map((s) => {
               const active = s.session_id === activeId;
               return (
@@ -98,49 +90,17 @@ function Sidebar({
           </div>
         ))}
         {sessions.length === 0 && (
-          <p className="text-xs text-gray-600 text-center pt-6 px-3">
-            No conversations yet
-          </p>
+          <p className="text-xs text-gray-600 text-center pt-6 px-3">No conversations yet</p>
         )}
       </div>
-
-      {/* Bottom */}
-      <div className="border-t border-white/5 p-2 space-y-0.5">
-        <Link
-          href="/documents"
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Documents
-        </Link>
-        <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500">
-          <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs text-white font-semibold flex-shrink-0">
-            {user?.username?.[0]?.toUpperCase() ?? 'U'}
-          </div>
-          <span className="truncate flex-1 text-gray-400">{user?.username ?? user?.email}</span>
-          <button
-            onClick={() => { logout(); router.push('/login'); }}
-            title="Sign out"
-            className="hover:text-red-400 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </aside>
+    </>
   );
 }
 
 // ── Message bubble ────────────────────────────────────────────────────────────
 
 function Message({ msg }: { msg: ChatMessage }) {
-  const isUser = msg.role === 'user';
-
-  if (isUser) {
+  if (msg.role === 'user') {
     return (
       <div className="flex justify-end">
         <div className="max-w-[75%] px-4 py-3 rounded-2xl rounded-br-sm bg-indigo-600 text-white text-sm leading-relaxed">
@@ -149,7 +109,6 @@ function Message({ msg }: { msg: ChatMessage }) {
       </div>
     );
   }
-
   return (
     <div className="flex gap-3 items-start">
       <div className="w-7 h-7 rounded-full bg-indigo-600/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -164,9 +123,7 @@ function Message({ msg }: { msg: ChatMessage }) {
             <span className="inline-block w-1.5 h-4 ml-0.5 bg-indigo-400 rounded-sm animate-pulse align-middle" />
           )}
         </div>
-        {msg.sources && msg.sources.length > 0 && (
-          <CitationCard sources={msg.sources} />
-        )}
+        {msg.sources && msg.sources.length > 0 && <CitationCard sources={msg.sources} />}
       </div>
     </div>
   );
@@ -180,9 +137,10 @@ function ChatArea({ sessionId }: { sessionId: string }) {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState('');
+
   useEffect(() => { setMessages([]); setStatusText(''); }, [sessionId]);
 
-  const scrollToBottom = useCallback((el: HTMLDivElement | null) => {
+  const scrollRef = useCallback((el: HTMLDivElement | null) => {
     el?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
@@ -194,18 +152,14 @@ function ChatArea({ sessionId }: { sessionId: string }) {
 
     const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: question };
     const assistantId = crypto.randomUUID();
-    const assistantMsg: ChatMessage = { id: assistantId, role: 'assistant', content: '', isStreaming: true };
-    setMessages((p) => [...p, userMsg, assistantMsg]);
+    setMessages((p) => [...p, userMsg, { id: assistantId, role: 'assistant', content: '', isStreaming: true }]);
 
     try {
       let sources: QuerySource[] = [];
-      let rewrittenQuery = '';
-
       for await (const event of streamQuery(sessionId, question, user.token)) {
         if (event.type === 'status') {
           setStatusText(event.data.status === 'retrieving' ? 'Searching knowledge base…' : 'Generating answer…');
         } else if (event.type === 'retrieval') {
-          rewrittenQuery = event.data.rewritten_query;
           setStatusText('');
         } else if (event.type === 'delta') {
           setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, content: m.content + event.data.text } : m));
@@ -216,7 +170,7 @@ function ChatArea({ sessionId }: { sessionId: string }) {
           setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, content: `Error: ${event.data.error}`, isStreaming: false } : m));
         }
       }
-      setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, isStreaming: false, sources, rewrittenQuery } : m));
+      setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, isStreaming: false, sources } : m));
     } catch (err) {
       setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, content: `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, isStreaming: false } : m));
     } finally {
@@ -227,7 +181,6 @@ function ChatArea({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
           {messages.length === 0 ? (
@@ -239,7 +192,7 @@ function ChatArea({ sessionId }: { sessionId: string }) {
               </div>
               <h2 className="text-lg font-semibold text-white">How can I help you?</h2>
               <p className="text-sm text-gray-500 max-w-xs">
-                Ask anything about your uploaded documents. Upload files from the Documents page.
+                Ask anything about your uploaded documents.
               </p>
             </div>
           ) : (
@@ -253,7 +206,7 @@ function ChatArea({ sessionId }: { sessionId: string }) {
               <span className="text-sm text-gray-500 italic">{statusText}</span>
             </div>
           )}
-          <div ref={scrollToBottom} />
+          <div ref={scrollRef} />
         </div>
       </div>
 
@@ -297,7 +250,7 @@ export default function ChatPage() {
   const { data: sessions = [], mutate } = useSWR<SessionListItem[]>(
     user ? 'sessions' : null,
     () => listSessions(user!.token),
-    { refreshInterval: 15000 }
+    { refreshInterval: 15000 },
   );
 
   const handleCreate = useCallback(async () => {
@@ -315,38 +268,38 @@ export default function ChatPage() {
   }, [user, mutate, activeId]);
 
   return (
-    <div className="flex h-screen bg-[#212121]">
-      <Sidebar
-        sessions={sessions}
-        activeId={activeId}
-        onSelect={setActiveId}
-        onCreate={handleCreate}
-        onDelete={handleDelete}
-      />
-
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {activeId ? (
-          <ChatArea sessionId={activeId} />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 select-none">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-600/15 flex items-center justify-center">
-              <svg className="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
-            </div>
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-white">RAG Studio</h2>
-              <p className="mt-1 text-sm text-gray-500">Select a chat or create a new one to get started</p>
-            </div>
-            <button
-              onClick={handleCreate}
-              className="mt-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
-            >
-              New chat
-            </button>
+    <AppShell
+      rightPanel={
+        <SessionPanel
+          sessions={sessions}
+          activeId={activeId}
+          onSelect={setActiveId}
+          onCreate={handleCreate}
+          onDelete={handleDelete}
+        />
+      }
+    >
+      {activeId ? (
+        <ChatArea sessionId={activeId} />
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 select-none">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-600/15 flex items-center justify-center">
+            <svg className="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
           </div>
-        )}
-      </main>
-    </div>
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-white">RAG Studio</h2>
+            <p className="mt-1 text-sm text-gray-500">Select a chat or create a new one to get started</p>
+          </div>
+          <button
+            onClick={handleCreate}
+            className="mt-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+          >
+            New chat
+          </button>
+        </div>
+      )}
+    </AppShell>
   );
 }

@@ -1,64 +1,158 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import { useAuth } from '@/lib/auth';
-import DocumentUploader from '@/components/DocumentUploader';
-import DocumentList from '@/components/DocumentList';
-import type { DocumentUploadResponse } from '@/types/rag';
+import { getTenantInfo } from '@/lib/api';
+import AppShell from '@/components/AppShell';
+import type { TenantInfoResponse } from '@/types/rag';
 
-export default function DocumentsPage() {
-  const [uploadedDocs, setUploadedDocs] = useState<DocumentUploadResponse[]>([]);
-  const { user, logout } = useAuth();
-  const router = useRouter();
+const PLAN_COLORS: Record<string, string> = {
+  free: 'bg-gray-700 text-gray-300',
+  starter: 'bg-blue-900/60 text-blue-300',
+  professional: 'bg-indigo-900/60 text-indigo-300',
+  enterprise: 'bg-amber-900/60 text-amber-300',
+};
+
+function fmt(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
+  return String(n);
+}
+
+function StatCard({
+  label,
+  value,
+  limit,
+  suffix = '',
+}: {
+  label: string;
+  value: number;
+  limit?: number | null;
+  suffix?: string;
+}) {
+  const pct = limit ? Math.min(100, (value / limit) * 100) : null;
+  return (
+    <div className="rounded-xl bg-[#2a2a2a] border border-white/5 p-5">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-2xl font-bold text-white">
+        {fmt(value)}{suffix}
+        {limit != null && (
+          <span className="text-sm font-normal text-gray-500 ml-1">/ {fmt(limit)}</span>
+        )}
+        {limit == null && limit !== undefined && (
+          <span className="text-sm font-normal text-gray-500 ml-1">/ ∞</span>
+        )}
+      </p>
+      {pct !== null && (
+        <div className="mt-3 h-1.5 rounded-full bg-white/10">
+          <div
+            className={`h-1.5 rounded-full transition-all ${pct > 85 ? 'bg-red-500' : pct > 60 ? 'bg-amber-500' : 'bg-indigo-500'}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Skeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="rounded-xl bg-[#2a2a2a] border border-white/5 p-5 animate-pulse">
+          <div className="h-3 w-20 bg-white/10 rounded mb-3" />
+          <div className="h-7 w-24 bg-white/10 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const { user } = useAuth();
+  const { data, error, isLoading } = useSWR<TenantInfoResponse>(
+    user ? 'tenant-info' : null,
+    () => getTenantInfo(user!.token),
+  );
 
   return (
-    <div className="flex h-screen bg-[#212121]">
-      {/* Minimal sidebar */}
-      <aside className="w-64 flex flex-col h-full bg-[#171717] border-r border-white/5">
-        <div className="p-3 border-b border-white/5">
-          <Link
-            href="/chat"
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-300 hover:bg-white/5 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to chat
-          </Link>
-        </div>
-        <div className="flex-1" />
-        <div className="border-t border-white/5 p-2">
-          <div className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-500">
-            <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs text-white font-semibold">
-              {user?.username?.[0]?.toUpperCase() ?? 'U'}
+    <AppShell>
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                {data ? `${data.tenant.name} · ` : ''}
+                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${PLAN_COLORS[data?.tenant.plan ?? 'free'] ?? PLAN_COLORS.free}`}>
+                  {(data?.tenant.plan ?? 'free').toUpperCase()}
+                </span>
+              </p>
             </div>
-            <span className="truncate flex-1 text-gray-400">{user?.username ?? user?.email}</span>
-            <button onClick={() => { logout(); router.push('/login'); }} title="Sign out" className="hover:text-red-400 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
           </div>
-        </div>
-      </aside>
 
-      {/* Main */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-8 py-10">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white">Documents</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Upload documents to build your knowledge base. Supported: PDF, DOCX, TXT, HTML, Markdown.
+          {isLoading && <Skeleton />}
+          {error && (
+            <p className="text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-lg px-4 py-3">
+              Failed to load stats: {error.message}
             </p>
-          </div>
-          <DocumentUploader onUploaded={(doc) => setUploadedDocs((p) => [doc, ...p])} />
-          <div className="mt-8">
-            <DocumentList pendingDocs={uploadedDocs} />
-          </div>
+          )}
+          {data && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <StatCard
+                  label="Documents"
+                  value={data.usage.doc_count}
+                  limit={data.limits.max_docs}
+                />
+                <StatCard
+                  label="Tokens today"
+                  value={data.usage.tokens_today}
+                  limit={data.limits.tokens_day}
+                />
+                <StatCard
+                  label="Active sessions"
+                  value={data.usage.session_count}
+                  limit={data.limits.max_sessions}
+                />
+                <StatCard
+                  label="Team members"
+                  value={data.member_count}
+                />
+              </div>
+
+              <div className="mt-6 rounded-xl bg-[#2a2a2a] border border-white/5 p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
+                  Queries today
+                </p>
+                <p className="text-2xl font-bold text-white">{fmt(data.usage.query_count_today)}</p>
+              </div>
+
+              <div className="mt-6 rounded-xl bg-[#2a2a2a] border border-white/5 p-5 space-y-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Organization</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Name</span>
+                  <span className="text-white">{data.tenant.name}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Slug</span>
+                  <span className="text-gray-300 font-mono text-xs">{data.tenant.slug}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Created</span>
+                  <span className="text-gray-300">
+                    {data.tenant.created_at ? new Date(data.tenant.created_at).toLocaleDateString() : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Your role</span>
+                  <span className="text-indigo-300 font-medium capitalize">{user?.role}</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

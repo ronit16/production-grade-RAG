@@ -21,7 +21,7 @@ export default function LoginPage() {
     setError('');
     try {
       const data = await apiLogin(email, password);
-      setUser({ token: data.access_token, user_id: data.user_id, tenant_id: data.tenant_id, email: data.email, username: data.username });
+      setUser({ token: data.access_token, user_id: data.user_id, tenant_id: data.tenant_id, email: data.email, username: data.username, role: data.role });
       router.push('/chat');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

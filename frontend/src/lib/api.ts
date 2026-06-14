@@ -1,11 +1,15 @@
 import type {
   AuthResponse,
+  DocumentListItem,
   DocumentUploadResponse,
   DocumentStatusResponse,
+  InviteResponse,
   SessionCreateResponse,
   SessionListItem,
   SessionCloseResponse,
   SSEEvent,
+  TeamMember,
+  TenantInfoResponse,
 } from '@/types/rag';
 
 const BASE = '/api';
@@ -46,7 +50,35 @@ export async function apiRegister(username: string, email: string, password: str
   return handleResponse<AuthResponse>(res);
 }
 
+export async function generateInvite(token: string): Promise<InviteResponse> {
+  const res = await fetch(`${BASE}/v1/auth/invite`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  return handleResponse<InviteResponse>(res);
+}
+
+export async function registerMember(data: {
+  invite_code: string;
+  username: string;
+  email: string;
+  password: string;
+}): Promise<AuthResponse> {
+  const res = await fetch(`${BASE}/v1/auth/register-member`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return handleResponse<AuthResponse>(res);
+}
+
 // ── Documents ────────────────────────────────────────────────────────────────
+
+export async function listDocuments(token: string): Promise<DocumentListItem[]> {
+  const res = await fetch(`${BASE}/v1/documents`, { headers: authHeaders(token) });
+  return handleResponse<DocumentListItem[]>(res);
+}
 
 export async function uploadDocument(
   file: File,
@@ -70,6 +102,17 @@ export async function getDocumentStatus(
     headers: authHeaders(token),
   });
   return handleResponse<DocumentStatusResponse>(res);
+}
+
+export async function deleteDocument(
+  documentId: string,
+  token: string
+): Promise<{ deleted: boolean; document_id: string }> {
+  const res = await fetch(`${BASE}/v1/documents/${documentId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
@@ -150,4 +193,54 @@ export async function* streamQuery(
       }
     }
   }
+}
+
+// ── Users / Team ─────────────────────────────────────────────────────────────
+
+export async function listUsers(token: string): Promise<TeamMember[]> {
+  const res = await fetch(`${BASE}/v1/users`, { headers: authHeaders(token) });
+  return handleResponse<TeamMember[]>(res);
+}
+
+export async function createUser(
+  data: { username: string; email: string; password: string; role: string },
+  token: string
+): Promise<{ user_id: string; username: string; email: string; role: string; tenant_id: string }> {
+  const res = await fetch(`${BASE}/v1/users`, {
+    method: 'POST',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function changeUserRole(
+  userId: string,
+  role: string,
+  token: string
+): Promise<{ user_id: string; success: boolean }> {
+  const res = await fetch(`${BASE}/v1/users/${userId}/role`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  });
+  return handleResponse(res);
+}
+
+export async function deactivateUser(
+  userId: string,
+  token: string
+): Promise<{ user_id: string; success: boolean }> {
+  const res = await fetch(`${BASE}/v1/users/${userId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
+// ── Tenant ────────────────────────────────────────────────────────────────────
+
+export async function getTenantInfo(token: string): Promise<TenantInfoResponse> {
+  const res = await fetch(`${BASE}/v1/tenant`, { headers: authHeaders(token) });
+  return handleResponse<TenantInfoResponse>(res);
 }

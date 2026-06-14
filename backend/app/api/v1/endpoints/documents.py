@@ -1,8 +1,9 @@
-"""Document upload and status polling endpoints."""
+"""Document upload, list, status polling, and delete endpoints."""
 import uuid
+from typing import Optional
 
 import boto3
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
 
 from app.api.deps import DBSession, RedisClient
@@ -10,7 +11,12 @@ from app.core.config import get_settings
 from app.core.exceptions import FileTooLargeError, PlanLimitError, UnsupportedMediaError
 from app.middleware.auth import RatedContext, AuthedContext
 from app.models.db import Document, DocumentStatus
-from app.schemas.document import DocumentStatusResponse, DocumentUploadResponse
+from app.schemas.document import (
+    DocumentDeleteResponse,
+    DocumentListItem,
+    DocumentStatusResponse,
+    DocumentUploadResponse,
+)
 from app.workers.ingestion import process_document
 
 settings = get_settings()
@@ -25,6 +31,45 @@ ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 MAX_FILE_SIZE_MB = 100
+
+
+@router.get("", response_model=list[DocumentListItem])
+async def list_documents(
+    ctx: AuthedContext,
+    db: DBSession,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    doc_status: Optional[DocumentStatus] = Query(None, alias="status"),
+):
+    """List all non-deleted documents for the current tenant."""
+    q = (
+        select(Document)
+        .where(
+            Document.tenant_id == ctx.tenant_id,
+            Document.deleted_at.is_(None),
+        )
+        .order_by(Document.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    if doc_status:
+        q = q.where(Document.status == doc_status)
+    result = await db.execute(q)
+    docs = result.scalars().all()
+    return [
+        DocumentListItem(
+            document_id=str(d.id),
+            filename=d.filename,
+            content_type=d.content_type,
+            file_size=d.file_size,
+            status=d.status,
+            chunk_count=d.chunk_count,
+            processing_ms=d.processing_ms,
+            error=d.error_msg,
+            created_at=d.created_at.isoformat() if d.created_at else None,
+        )
+        for d in docs
+    ]
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=DocumentUploadResponse)
@@ -93,6 +138,29 @@ async def ingest_document(
     )
 
     return DocumentUploadResponse(document_id=doc_id, status="processing", filename=file.filename)
+
+
+@router.delete("/{document_id}", response_model=DocumentDeleteResponse)
+async def delete_document(
+    document_id: str,
+    ctx: AuthedContext,
+    db: DBSession,
+):
+    """Soft-delete a document (owner/admin only)."""
+    ctx.require_role("owner", "admin")
+    result = await db.execute(
+        select(Document).where(
+            Document.id == uuid.UUID(document_id),
+            Document.tenant_id == ctx.tenant_id,
+            Document.deleted_at.is_(None),
+        )
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    doc.deleted_at = func.now()
+    await db.commit()
+    return DocumentDeleteResponse(deleted=True, document_id=document_id)
 
 
 @router.get("/{document_id}", response_model=DocumentStatusResponse)
