@@ -89,3 +89,80 @@ METRIC_THRESHOLDS: dict[str, float] = {
     "retrieval_ratio":    0.10,
     "context_awareness":  0.70,
 }
+
+# ── RFC 7231 domain — used by TestMultiTenantRAGASScores ─────────────────────
+# These samples target the tech_specs.txt fixture corpus (HTTP semantics content).
+
+GOLDEN_SAMPLES_RFC: list[EvalSample] = [
+    EvalSample(
+        question="What HTTP request methods are described and what do they do?",
+        ground_truth=(
+            "GET requests a representation of the target resource. "
+            "POST submits data for processing or creates a new resource. "
+            "PUT replaces the resource's state with the supplied representation. "
+            "DELETE removes the resource. HEAD is identical to GET but without "
+            "a response body. PATCH applies partial modifications."
+        ),
+        reference_contexts=[
+            "The GET method requests transfer of a current selected representation "
+            "for the target resource.",
+            "The POST method requests that the target resource process the representation "
+            "enclosed in the request according to the resource's own specific semantics.",
+            "The PUT method requests that the state of the target resource be created or "
+            "replaced with the state defined by the representation in the request.",
+            "The DELETE method requests that the origin server remove the association "
+            "between the target resource and its current functionality.",
+            "The PATCH method requests that a set of changes be applied to the resource.",
+        ],
+    ),
+    EvalSample(
+        question="What do 4xx HTTP status codes indicate and what are some examples?",
+        ground_truth=(
+            "4xx status codes indicate that the client seems to have erred. "
+            "400 means the request is malformed. 401 means authentication is required. "
+            "403 means the server refuses to authorize the request. "
+            "404 means the resource was not found. 429 means too many requests."
+        ),
+        reference_contexts=[
+            "The 4xx (Client Error) class of status code indicates that the client "
+            "seems to have erred.",
+            "400 Bad Request: The server cannot process the request due to a client error "
+            "such as malformed request syntax.",
+            "401 Unauthorized: The request lacks valid authentication credentials.",
+            "403 Forbidden: The server understood the request but refuses to authorize it.",
+            "404 Not Found: The origin server did not find a current representation for "
+            "the target resource.",
+            "429 Too Many Requests: The user has sent too many requests in a given time.",
+        ],
+    ),
+    # Multi-turn: exercises _compute_context_awareness for the RFC domain
+    EvalSample(
+        question="What about 5xx codes — when does the server return those?",
+        ground_truth=(
+            "5xx status codes indicate that the server is aware it has erred. "
+            "500 Internal Server Error means an unexpected condition prevented the response. "
+            "502 Bad Gateway means the gateway received an invalid response from upstream. "
+            "503 Service Unavailable means the server is temporarily overloaded or down."
+        ),
+        reference_contexts=[
+            "The 5xx (Server Error) class of status codes indicates that the server is "
+            "aware that it has erred or is incapable of performing the requested method.",
+            "500 Internal Server Error: The server encountered an unexpected condition.",
+            "502 Bad Gateway: The server received an invalid response from an inbound server.",
+            "503 Service Unavailable: The server is temporarily unable to handle the request.",
+        ],
+        history=[
+            {
+                "role":    "user",
+                "content": "What do 4xx HTTP status codes indicate?",
+            },
+            {
+                "role":    "assistant",
+                "content": (
+                    "4xx codes indicate client errors. For example, 400 is a bad request, "
+                    "401 requires authentication, 403 is forbidden, and 404 means not found."
+                ),
+            },
+        ],
+    ),
+]

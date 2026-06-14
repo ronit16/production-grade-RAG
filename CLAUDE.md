@@ -27,7 +27,7 @@ docker logs production_grade_rag-api-1 -f
 ```bash
 cd backend
 
-# Default run — all non-slow tests; real containers via Testcontainers (auto-started)
+# Default run — all non-slow, non-integration tests; real containers via Testcontainers (auto-started)
 pytest
 
 # Single test file
@@ -39,6 +39,15 @@ pytest tests/regression/test_auth.py::test_register_success -v
 # Unit tests only (no Docker containers needed)
 pytest tests/unit/ -v --no-containers
 
+# Full regression suite (includes auth, documents, sessions, health)
+pytest tests/regression/ -v
+
+# Multi-tenant / multi-user HTTP isolation tests (marked 'integration')
+pytest -m integration -v
+pytest tests/regression/test_multitenancy.py -v   # 7 cross-tenant isolation tests
+pytest tests/regression/test_multiuser.py -v      # 9 multi-user (same tenant) tests
+pytest tests/regression/test_multisession.py -v   # 10 multi-session per user tests
+
 # Include slow tests (requires running stack + real LLM API keys)
 pytest tests/ -v -m ""
 
@@ -48,22 +57,32 @@ pytest tests/regression/ --cov=app --cov-report=html
 
 `pytest.ini` defaults: `asyncio_mode = auto`, 60 s timeout per test, `-m "not slow"` filter applied automatically.
 
+Two markers are registered:
+- `slow` — requires a real Celery worker or LLM API calls (excluded by default)
+- `integration` — HTTP-layer tests spanning multiple tenants or users (excluded by default)
+
 ### Evaluation tests
 
 ```bash
 cd backend
 
-# Fast — 24 unit/mock tests, no containers or API key required
+# Fast — unit/mock tests, no containers or API key required
 pytest tests/evaluation/ --no-containers -v
 
-# Live — real retrieve + generate + RAGAS scoring (requires real OPENAI_API_KEY)
-export OPENAI_API_KEY=sk-...your-real-key...
+# Live — real retrieve + generate + RAGAS scoring (requires real GEMINI_API_KEY)
+export GEMINI_API_KEY=AI-...your-real-key...
 pytest tests/evaluation/ -m slow -v
+
+# Multi-tenant corpus divergence evaluation (Acme vs RFC 7231 corpora)
+GEMINI_API_KEY=<key> pytest tests/evaluation/test_multitenant_eval.py -m slow -v
 ```
 
-The live test auto-skips if `OPENAI_API_KEY` is absent or starts with `sk-test`.
-Testcontainers preserves a real key already exported in the shell — it only injects
-the `sk-test-fake` placeholder when no real key is present.
+The live tests auto-skip if `GEMINI_API_KEY` is absent or equals `test-fake-gemini-key`.
+RAGAS scoring uses `gemini/gemini-2.0-flash` — not OpenAI.
+
+Two golden datasets exist:
+- `GOLDEN_SAMPLES` — 5 Acme Corp policy Q&A samples (single-tenant baseline)
+- `GOLDEN_SAMPLES_RFC` — 3 RFC 7231 HTTP semantics samples, including a multi-turn follow-up
 
 ### Load tests (requires running stack)
 
@@ -135,12 +154,15 @@ EvaluationPipeline(ctx).run_dataset(samples)
   Phase 1: for each EvalSample → retrieve() + generate_sync() → answer, RetrievalResult, usage
   Phase 2: single RAGAS evaluate() call for full batch (faithfulness, relevancy, precision,
            recall, correctness) — run in executor so it doesn't block the event loop
+           Uses gemini/gemini-2.0-flash as the RAGAS LLM judge (GEMINI_API_KEY required)
   Phase 3: derive hallucination_rate (1−faithfulness), retrieval_ratio (reranked/candidates),
            context_awareness (gpt-4o-mini LLM judge for multi-turn; 1.0 for single-turn)
   → list[EvalResult]  +  EvaluationPipeline.aggregate(results) → dict[metric, float]
 ```
 
 `EvalResult` carries all 8 metric fields plus `retrieval_ms`, `generation_ms`, `total_ms`, and token counts. RAGAS imports are guarded with `try/except ImportError` so the service loads cleanly in environments where `ragas` is not installed.
+
+`tests/evaluation/test_multitenant_eval.py` verifies that two `EvaluationPipeline` instances with different `TenantContext` objects are fully independent, and (via slow tests) that answers from different corpora diverge — Tenant A (Acme policy) gets refund answers, Tenant B (RFC 7231) gets HTTP semantics answers.
 
 ### Tenant isolation — where it is enforced
 
