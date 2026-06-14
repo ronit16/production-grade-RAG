@@ -23,6 +23,7 @@ Thumbs.db
 # Environment
 .env
 .env.*
+!.env.example
 
 # JWT keypair — never commit private keys
 secrets/
@@ -42,6 +43,12 @@ htmlcov/
 
 # Logs
 *.log
+
+# Frontend build artifacts
+node_modules/
+.next/
+frontend/node_modules/
+frontend/.next/
 
 # Misc
 *.bak

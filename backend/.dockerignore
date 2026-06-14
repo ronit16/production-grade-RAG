@@ -8,3 +8,9 @@ __pycache__
 htmlcov
 *.egg-info
 .git
+
+# Test suite — not needed in production image
+tests/
+
+# Dev utilities
+scripts/
