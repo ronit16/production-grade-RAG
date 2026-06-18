@@ -2,11 +2,10 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110-green?logo=fastapi)
-![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-A production-grade Retrieval-Augmented Generation (RAG) system built to handle real-world multi-tenant SaaS requirements. It combines hybrid vector search (dense + sparse with native RRF fusion), streaming LLM responses via Server-Sent Events, and a ChatGPT-style Next.js frontend — all containerized with Docker Compose and tested end-to-end with Testcontainers.
+A production-grade Retrieval-Augmented Generation (RAG) API built to handle real-world multi-tenant SaaS requirements. It combines hybrid vector search (dense + sparse with native RRF fusion), streaming LLM responses via Server-Sent Events — all containerized with Docker Compose and tested end-to-end with Testcontainers.
 
 The system solves the core challenge of deploying RAG in a shared-infrastructure environment: strict per-tenant data isolation at every layer (auth, vector search, object storage, Redis, and database) with zero cross-tenant leakage, validated by a comprehensive test suite including multi-tenant regression tests, RAGAS quality evaluation, and load testing.
 
@@ -53,7 +52,6 @@ The system solves the core challenge of deploying RAG in a shared-infrastructure
 - **Async ingestion pipeline** — Celery + RabbitMQ worker parses PDFs/DOCX/Markdown with Unstructured, embeds in batches, upserts to Qdrant
 - **RAGAS quality evaluation** — 8-metric automated quality gate (faithfulness, relevancy, context precision/recall, answer quality, hallucination rate, retrieval ratio, context-awareness) against golden Q&A datasets
 - **Production-grade testing** — Testcontainers regression suite, HTTP-layer multi-tenant isolation tests, unit tests, RAGAS evaluation, and Locust load tests (50-user ramp)
-- **ChatGPT-style frontend** — Next.js 14 + Tailwind CSS with session sidebar, document management, and streaming chat
 - **Plan-tier rate limiting** — per-tenant token-bucket rate limiter in Redis (FREE/STARTER/PROFESSIONAL/ENTERPRISE tiers)
 
 ---
@@ -84,27 +82,30 @@ cp .env.example .env
 ### 2 — Generate RS256 JWT keys
 
 ```bash
-mkdir -p backend/secrets
-openssl genrsa -out backend/secrets/jwt_private.pem 4096
-openssl rsa -in backend/secrets/jwt_private.pem -pubout -out backend/secrets/jwt_public.pem
+mkdir -p secrets
+openssl genrsa -out secrets/jwt_private.pem 4096
+openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
 ```
 
 These keys are mounted read-only into the container at `/secrets/` and never leave your machine.
 
-### 3 — Start the full stack
+### 3 — Start the stack
 
 ```bash
 docker compose up --build -d
 ```
 
-All 9 services start with health checks. Watch progress with:
+> **Development mode:** set `APP_ENV=development` in your `.env` to enable Swagger UI at `/docs`.  
+> A `docker-compose.dev.yml` with hot-reload and lighter resource limits is not tracked in the repo — create your own local override if needed.
+
+All 8 services start with health checks. Watch progress with:
 
 ```bash
 docker compose ps
 # Wait until all services show (healthy)
 ```
 
-The API is ready at **http://localhost:8000** and the frontend at **http://localhost:3001**.
+The API is ready at **http://localhost:8000**.
 
 > **Swagger UI** (development mode only): http://localhost:8000/docs  
 > Set `APP_ENV=development` in `.env` to enable it.
@@ -124,8 +125,7 @@ curl http://localhost:8000/v1/health/detailed
 | Service | URL | Notes |
 |---|---|---|
 | FastAPI | http://localhost:8000 | Main API |
-| Frontend (Next.js) | http://localhost:3001 | ChatGPT-style UI |
-| Swagger UI | http://localhost:8000/docs | Dev mode only |
+| Swagger UI | http://localhost:8000/docs | Dev mode only (`docker-compose.dev.yml`) |
 | PostgreSQL | localhost:5433 | Host port (container: 5432) |
 | Redis | localhost:6381 | Host port (container: 6379) |
 | RabbitMQ management | http://localhost:15672 | guest / guest |
@@ -210,10 +210,7 @@ The query endpoint maintains **conversation history** across multiple turns in t
 ### Request Lifecycle
 
 ```
-Browser / API Client
-       │
-       ▼
-  Next.js Frontend  (port 3001)
+HTTP Client / Browser
        │
        ▼
 FastAPI  ──── CORSMiddleware
@@ -338,83 +335,80 @@ Two golden datasets are supported:
 
 ```
 production-grade-RAG/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                          # App factory: middleware, lifespan, routers
-│   │   ├── api/
-│   │   │   ├── deps.py                      # Shared dependency aliases (DBSession, RedisClient)
-│   │   │   └── v1/
-│   │   │       ├── router.py
-│   │   │       └── endpoints/
-│   │   │           ├── health.py            # GET /health, /ready, /health/detailed
-│   │   │           ├── auth.py              # POST /auth/register, /auth/login
-│   │   │           ├── documents.py         # POST/GET /v1/documents
-│   │   │           ├── sessions.py          # POST/GET/DELETE /v1/sessions
-│   │   │           └── query.py             # POST /v1/query (SSE stream)
-│   │   ├── core/
-│   │   │   ├── config.py                    # Pydantic settings (all env vars)
-│   │   │   ├── database.py                  # Async SQLAlchemy engine + Redis pool + init_db
-│   │   │   └── exceptions.py
-│   │   ├── middleware/
-│   │   │   └── auth.py                      # JWT/API-key auth, TenantContext, rate limiting
-│   │   ├── models/
-│   │   │   └── db.py                        # SQLAlchemy ORM models (8 tables)
-│   │   ├── schemas/
-│   │   │   ├── document.py
-│   │   │   ├── session.py
-│   │   │   └── query.py
-│   │   ├── services/
-│   │   │   ├── retriever.py                 # Hybrid retrieval: dense+sparse → RRF → rerank
-│   │   │   ├── generator.py                 # LLM streaming (LiteLLM, citations, fallback)
-│   │   │   ├── session.py                   # SessionManager: Redis ↔ PostgreSQL lifecycle
-│   │   │   └── evaluator.py                 # RAGAS evaluation pipeline (8 metrics)
-│   │   └── workers/
-│   │       ├── celery_app.py
-│   │       └── ingestion.py                 # Celery task: parse → embed → Qdrant → DB
-│   ├── migrations/
-│   │   └── 001_add_user_id_to_queries.sql   # Applied automatically on startup via init_db()
-│   ├── scripts/
-│   │   └── generate_dev_token.py            # Mint a dev JWT for manual API testing
-│   ├── tests/
-│   │   ├── conftest.py                      # Testcontainers startup (pytest_configure hook)
-│   │   ├── regression/                      # HTTP-layer tests against real containers
-│   │   │   ├── conftest.py                  # Auth fixtures: registered_user, tenant_b_user,
-│   │   │   │                                #   second_user_same_tenant, member fixtures
-│   │   │   ├── fixtures/
-│   │   │   │   ├── sample.txt               # Synthetic Acme Corp policy document
-│   │   │   │   └── tech_specs.txt           # RFC 7231 HTTP semantics document
-│   │   │   ├── test_health.py               # Health & readiness probe tests
-│   │   │   ├── test_auth.py                 # Register / login flows
-│   │   │   ├── test_documents.py            # Upload + status polling
-│   │   │   ├── test_sessions.py             # Session CRUD
-│   │   │   ├── test_query.py                # SSE streaming with respx mocks
-│   │   │   ├── test_multitenancy.py         # Cross-tenant isolation (7 tests)
-│   │   │   ├── test_multiuser.py            # Multi-user within same tenant (9 tests)
-│   │   │   └── test_multisession.py         # Multi-session per user (10 tests)
-│   │   ├── unit/                            # No containers required
-│   │   │   ├── test_chunking.py
-│   │   │   ├── test_rrf.py
-│   │   │   └── test_session.py
-│   │   ├── integration/                     # Service-layer integration tests (mocked clients)
-│   │   │   ├── test_tenant_isolation.py     # Qdrant filter + Redis key scoping
-│   │   │   └── test_session_management.py   # Session lifecycle with mocked Redis/DB
-│   │   ├── evaluation/
-│   │   │   ├── conftest.py                  # Auth fixtures for evaluation tests
-│   │   │   ├── golden_dataset.py            # GOLDEN_SAMPLES (5 Acme) + GOLDEN_SAMPLES_RFC (3 RFC)
-│   │   │   ├── test_ragas.py                # 7 RAGAS test classes (unit + live)
-│   │   │   └── test_multitenant_eval.py     # Multi-tenant evaluation (6 tests)
-│   │   └── load/
-│   │       └── locustfile.py                # 50-user step ramp-up load test
-│   ├── pytest.ini
-│   └── requirements.txt
-├── frontend/                                # Next.js 14 + TypeScript + Tailwind CSS
-│   ├── src/
-│   │   ├── app/                             # App router pages (login, register, chat, documents)
-│   │   ├── components/                      # ChatWindow, SessionSidebar, DocumentUploader, CitationCard
-│   │   └── lib/                             # auth.tsx (context provider), api.ts (Axios wrapper)
-│   └── Dockerfile
-├── docker-compose.yml                       # Full 9-service stack with resource limits
-└── .env.example                             # Environment variable template
+├── app/
+│   ├── main.py                          # App factory: middleware, lifespan, routers
+│   ├── api/
+│   │   ├── deps.py                      # Shared dependency aliases (DBSession, RedisClient)
+│   │   └── v1/
+│   │       ├── router.py
+│   │       └── endpoints/
+│   │           ├── health.py            # GET /health, /ready, /health/detailed
+│   │           ├── auth.py              # POST /auth/register, /auth/login
+│   │           ├── documents.py         # POST/GET /v1/documents
+│   │           ├── sessions.py          # POST/GET/DELETE /v1/sessions
+│   │           └── query.py             # POST /v1/query (SSE stream)
+│   ├── core/
+│   │   ├── config.py                    # Pydantic settings (all env vars)
+│   │   ├── database.py                  # Async SQLAlchemy engine + Redis pool + init_db
+│   │   └── exceptions.py
+│   ├── middleware/
+│   │   └── auth.py                      # JWT/API-key auth, TenantContext, rate limiting
+│   ├── models/
+│   │   └── db.py                        # SQLAlchemy ORM models (8 tables)
+│   ├── schemas/
+│   │   ├── document.py
+│   │   ├── session.py
+│   │   └── query.py
+│   ├── services/
+│   │   ├── retriever.py                 # Hybrid retrieval: dense+sparse → RRF → rerank
+│   │   ├── generator.py                 # LLM streaming (LiteLLM, citations, fallback)
+│   │   ├── session.py                   # SessionManager: Redis ↔ PostgreSQL lifecycle
+│   │   └── evaluator.py                 # RAGAS evaluation pipeline (8 metrics)
+│   └── workers/
+│       ├── celery_app.py
+│       └── ingestion.py                 # Celery task: parse → embed → Qdrant → DB
+├── tests/
+│   ├── conftest.py                      # Testcontainers startup (pytest_configure hook)
+│   ├── regression/                      # HTTP-layer tests against real containers
+│   │   ├── conftest.py                  # Auth fixtures: registered_user, tenant_b_user,
+│   │   │                                #   second_user_same_tenant, member fixtures
+│   │   ├── fixtures/
+│   │   │   ├── sample.txt               # Synthetic Acme Corp policy document
+│   │   │   └── tech_specs.txt           # RFC 7231 HTTP semantics document
+│   │   ├── test_health.py               # Health & readiness probe tests
+│   │   ├── test_auth.py                 # Register / login flows
+│   │   ├── test_documents.py            # Upload + status polling
+│   │   ├── test_sessions.py             # Session CRUD
+│   │   ├── test_query.py                # SSE streaming with respx mocks
+│   │   ├── test_multitenancy.py         # Cross-tenant isolation (7 tests)
+│   │   ├── test_multiuser.py            # Multi-user within same tenant (9 tests)
+│   │   └── test_multisession.py         # Multi-session per user (10 tests)
+│   ├── unit/                            # No containers required
+│   │   ├── test_chunking.py
+│   │   ├── test_rrf.py
+│   │   └── test_session.py
+│   ├── integration/                     # Service-layer integration tests (mocked clients)
+│   │   ├── test_tenant_isolation.py     # Qdrant filter + Redis key scoping
+│   │   └── test_session_management.py   # Session lifecycle with mocked Redis/DB
+│   ├── evaluation/
+│   │   ├── conftest.py                  # Auth fixtures for evaluation tests
+│   │   ├── golden_dataset.py            # GOLDEN_SAMPLES (5 Acme) + GOLDEN_SAMPLES_RFC (3 RFC)
+│   │   ├── test_ragas.py                # 7 RAGAS test classes (unit + live)
+│   │   └── test_multitenant_eval.py     # Multi-tenant evaluation (6 tests)
+│   └── load/
+│       └── locustfile.py                # 50-user step ramp-up load test
+├── scripts/
+│   └── generate_dev_token.py            # Mint a dev JWT for manual API testing
+├── deploy/k8s/
+│   └── deployment.yaml                  # Kubernetes manifests (API, worker, HPA, Ingress)
+├── secrets/                             # RS256 JWT keypair — git-ignored, never committed
+├── Dockerfile                           # Python 3.11 slim + Gunicorn/Uvicorn
+├── docker-compose.yml                   # Production: 8-service stack with resource limits
+├── docker-compose.dev.yml               # Dev: hot-reload, Swagger UI — git-ignored
+├── requirements.txt
+├── pytest.ini
+├── main.py                              # Gunicorn entry point
+└── .env.example                         # Environment variable template
 ```
 
 ### Tenant isolation — where it is enforced
@@ -432,15 +426,13 @@ production-grade-RAG/
 
 ## Running Tests
 
-All tests live under `backend/tests/`. Run from the `backend/` directory.
+All tests live under `tests/`. Run from the repo root.
 
 ### Regression Tests (Testcontainers)
 
 Containers start automatically — no running stack required. The `pytest_configure` hook in `tests/conftest.py` spins up real PostgreSQL, Redis, Qdrant, MinIO, and RabbitMQ containers before any test module is imported.
 
 ```bash
-cd backend
-
 # Full regression suite (default: excludes slow and integration markers)
 pytest tests/regression/ -v
 
@@ -462,8 +454,6 @@ pytest tests/regression/ --cov=app --cov-report=html -v
 HTTP-layer tests that verify cross-tenant data isolation and multi-user session boundaries. Use real PostgreSQL + Redis containers (started by Testcontainers). No LLM API keys required.
 
 ```bash
-cd backend
-
 # Run all integration-marked tests
 pytest -m integration -v
 
@@ -490,15 +480,12 @@ pytest tests/regression/test_multisession.py -v
 No Docker containers needed. Uses `--no-containers` flag (defined in `pytest.ini` if containers are not available).
 
 ```bash
-cd backend
 pytest tests/unit/ -v --no-containers
 ```
 
 ### Evaluation Tests (RAGAS)
 
 ```bash
-cd backend
-
 # Fast — mock tests, no containers or API keys required
 pytest tests/evaluation/ --no-containers -v
 
@@ -531,13 +518,13 @@ Requires the application stack to be running (`docker compose up -d`).
 
 ```bash
 # Interactive web UI → http://localhost:8089
-locust -f backend/tests/load/locustfile.py --host http://localhost:8000
+locust -f tests/load/locustfile.py --host http://localhost:8000
 
 # Headless — ramp to 50 users, 5-minute run, HTML report
-locust -f backend/tests/load/locustfile.py \
+locust -f tests/load/locustfile.py \
   --headless --host http://localhost:8000 \
   --users 50 --spawn-rate 5 --run-time 5m \
-  --html backend/tests/load/report.html
+  --html tests/load/report.html
 ```
 
 Load shape: warm-up (10 users) → ramp (25) → peak (50) → hold.
@@ -725,17 +712,16 @@ Contributions are welcome. Please follow these guidelines:
 
 2. **Run the test suite before submitting:**
    ```bash
-   cd backend
    pytest tests/regression/ tests/unit/ tests/integration/ -v
    pytest -m integration -v
    ```
    All tests must pass. Do not add `--no-verify` or skip the test run.
 
 3. **Adding a new endpoint:**
-   - Create the handler in `backend/app/api/v1/endpoints/`
+   - Create the handler in `app/api/v1/endpoints/`
    - Declare dependencies: `ctx: TenantContext = Depends(get_tenant_ctx)`, `db: AsyncSession = Depends(get_db)`, `redis: Redis = Depends(get_redis)`
-   - Register in `backend/app/api/v1/router.py`
-   - Add a regression test in `backend/tests/regression/`
+   - Register in `app/api/v1/router.py`
+   - Add a regression test in `tests/regression/`
    - Every query against PostgreSQL must include `WHERE tenant_id = :tid`
 
 4. **Adding new tests:**

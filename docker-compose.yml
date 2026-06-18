@@ -149,12 +149,12 @@ services:
   # ── Application ─────────────────────────────────────────────────────────────
   api:
     build:
-      context: ./backend
+      context: .
     <<: *app-env
     ports:
-      - "8000:8000"     # API → http://localhost:8000  (docs at /docs in dev mode)
+      - "8000:8000"     # API → http://localhost:8000
     volumes:
-      - ./backend/secrets:/secrets:ro
+      - ./secrets:/secrets:ro
     depends_on:
       db:
         condition: service_healthy
@@ -176,13 +176,13 @@ services:
 
   worker:
     build:
-      context: ./backend
+      context: .
     command: >
       celery -A app.workers.celery_app.celery_app worker
              --loglevel=info -Q ingest -c 8
     <<: *app-env
     volumes:
-      - ./backend/secrets:/secrets:ro
+      - ./secrets:/secrets:ro
     depends_on:
       db:
         condition: service_healthy
@@ -203,20 +203,6 @@ services:
         reservations:
           cpus: "1.0"
           memory: 2G
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        BACKEND_URL: http://api:8000
-    ports:
-      - "3001:3000"
-    environment:
-      BACKEND_URL: http://api:8000
-    depends_on:
-      - api
-    restart: unless-stopped
 
 volumes:
   postgres_data:

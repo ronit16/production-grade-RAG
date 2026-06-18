@@ -1,0 +1,28 @@
+# Secrets — never bake into image; mounted at runtime
+.env
+secrets/
+
+# Python artifacts
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+htmlcov
+*.egg-info
+
+# Git
+.git
+
+# Not needed in the production image
+tests/
+scripts/
+deploy/
+frontend/
+
+# Compose and project files
+docker-compose*.yml
+README.md
+*.md
+CLAUDE.md
