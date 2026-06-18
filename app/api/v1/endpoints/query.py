@@ -31,11 +31,14 @@ async def _sse_stream(
         yield f"event: error\ndata: {json.dumps({'error': 'Session not found'})}\n\n"
         return
 
-    # Guard: Redis may outlive DB after a container restart — verify session row exists
+    # Guard: Redis may outlive DB after a container restart — verify session row exists.
+    # user_id check here closes the IDOR: users within the same tenant cannot
+    # query each other's sessions.
     db_chk = await db.execute(
         select(ConvSession.id).where(
             ConvSession.id == uuid.UUID(req.session_id),
             ConvSession.tenant_id == ctx.tenant_id,
+            ConvSession.user_id == ctx.user_id,
         )
     )
     if not db_chk.scalar_one_or_none():

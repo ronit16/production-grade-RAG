@@ -3,7 +3,9 @@ Production RAG System - Auth Middleware & Tenant Context
 Injects tenant + user context into every request. Enforces plan limits.
 """
 import hashlib
+import json
 import time
+from dataclasses import dataclass, field
 from typing import Annotated, Optional
 from uuid import UUID
 
@@ -119,6 +121,20 @@ async def _resolve_api_key(
 _TENANT_CACHE_TTL = 60   # seconds
 
 
+@dataclass
+class _TenantStub:
+    """Minimal Tenant-like object rebuilt from the Redis JSON cache.
+    Avoids pickle so a poisoned cache key cannot execute arbitrary code."""
+    id: UUID
+    slug: str
+    vector_namespace: str
+    plan: PlanTier
+    llm_config: dict = field(default_factory=dict)
+    rag_config: dict = field(default_factory=dict)
+    features: dict = field(default_factory=dict)
+    is_active: bool = True
+
+
 async def get_tenant_ctx(
     request: Request,
     credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
@@ -160,8 +176,16 @@ async def get_tenant_ctx(
     cached     = await redis.get(cache_key)
 
     if cached:
-        import pickle
-        tenant = pickle.loads(cached)
+        data = json.loads(cached)
+        tenant: Tenant | _TenantStub = _TenantStub(
+            id=UUID(data["id"]),
+            slug=data["slug"],
+            vector_namespace=data["vector_namespace"],
+            plan=PlanTier(data["plan"]),
+            llm_config=data.get("llm_config") or {},
+            rag_config=data.get("rag_config") or {},
+            features=data.get("features") or {},
+        )
     else:
         result = await db.execute(
             select(Tenant).where(Tenant.id == tenant_id, Tenant.is_active == True)
@@ -169,8 +193,15 @@ async def get_tenant_ctx(
         tenant = result.scalar_one_or_none()
         if not tenant:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant not found or inactive")
-        import pickle
-        await redis.setex(cache_key, _TENANT_CACHE_TTL, pickle.dumps(tenant))
+        await redis.setex(cache_key, _TENANT_CACHE_TTL, json.dumps({
+            "id": str(tenant.id),
+            "slug": tenant.slug,
+            "vector_namespace": tenant.vector_namespace,
+            "plan": tenant.plan.value,
+            "llm_config": tenant.llm_config or {},
+            "rag_config": tenant.rag_config or {},
+            "features": tenant.features or {},
+        }))
 
     ctx = TenantContext(tenant=tenant, user_id=user_id, user_role=role)
     request.state.tenant = ctx
