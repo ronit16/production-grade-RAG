@@ -15,7 +15,7 @@ import redis.asyncio as aioredis
 from app.core.config import get_settings
 from app.core.database import get_db, get_redis
 from app.core.security import hash_password, verify_password
-from app.middleware.auth import AuthedContext
+from app.middleware.auth import AuthedContext, check_login_rate_limit
 from app.models.db import PlanTier, Tenant, User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -116,7 +116,11 @@ def _issue_token(user: User) -> str:
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(
+    req: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(check_login_rate_limit),
+):
     """Create a new account. Each user gets their own isolated tenant."""
     result = await db.execute(select(User).where(User.email == req.email))
     if result.scalar_one_or_none():
@@ -161,7 +165,11 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(
+    req: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(check_login_rate_limit),
+):
     """Authenticate with email + password and receive a JWT."""
     result = await db.execute(select(User).where(User.email == req.email))
     user = result.scalar_one_or_none()

@@ -10,8 +10,9 @@ from pydantic import AnyUrl, Field, field_validator
 from pydantic_settings import BaseSettings
 
 # Resolve .env relative to this file so it works regardless of CWD.
+# File lives at app/core/config.py → parents[2] is the repo root.
 # On host: <project-root>/.env  |  In Docker: /.env (missing → ignored)
-_ENV_FILE = str(Path(__file__).resolve().parents[3] / ".env")
+_ENV_FILE = str(Path(__file__).resolve().parents[2] / ".env")
 
 
 class EmbeddingModel(str, Enum):
@@ -63,7 +64,7 @@ class Settings(BaseSettings):
 
     # ── LLM ───────────────────────────────────────────────────────────────
     OPENAI_API_KEY: str      = Field(...)
-    GEMINI_API_KEY: str      = Field(...)
+    GEMINI_API_KEY: Optional[str] = None   # optional — only needed if using Gemini models
     PRIMARY_LLM: str         = "openai/gpt-4o"
     FALLBACK_LLM: str        = "gemini/gemini-1.5-pro"
     LLM_TIMEOUT_SECONDS: int = 30
@@ -91,6 +92,20 @@ class Settings(BaseSettings):
     # ── Rate limiting ──────────────────────────────────────────────────────
     DEFAULT_RATE_LIMIT_RPS: int = 10     # requests per second per tenant
     DEFAULT_DAILY_TOKEN_LIMIT: int = 500_000
+
+    # ── CORS ───────────────────────────────────────────────────────────────
+    ALLOWED_METHODS: list[str] = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
+    ALLOWED_HEADERS: list[str] = [
+        "Authorization", "Content-Type", "Accept",
+        "Accept-Encoding", "X-Request-ID", "X-Requested-With",
+    ]
+
+    # ── Auth rate limiting ─────────────────────────────────────────────────
+    LOGIN_RATE_LIMIT_PER_MINUTE: int = 5  # max login/register attempts per IP per 60 s
+    # CIDRs of trusted reverse proxies (nginx-ingress, load balancers).
+    # X-Forwarded-For is only trusted when the direct peer is in this list.
+    # Leave empty when running without a reverse proxy (direct Docker Compose deploys).
+    TRUSTED_PROXY_CIDRS: list[str] = []  # e.g. ["10.0.0.0/8", "172.16.0.0/12"]
 
     # ── Logging ────────────────────────────────────────────────────────────
     LOG_LEVEL: str           = "INFO"

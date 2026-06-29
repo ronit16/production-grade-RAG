@@ -230,10 +230,10 @@ class EvaluationPipeline:
 
         ragas_llm = LiteLLMStructuredLLM(
             client=litellm.completion,
-            model="gemini/gemini-2.0-flash",
-            provider="google",
+            model="openai/gpt-4o-mini",
+            provider="openai",
         )
-        ragas_emb = LiteLLMEmbeddings(model="gemini/text-embedding-004")
+        ragas_emb = LiteLLMEmbeddings(model="openai/text-embedding-3-small")
 
         # evaluate() is synchronous — offload to executor to avoid blocking the loop
         loop = asyncio.get_event_loop()
@@ -276,7 +276,7 @@ class EvaluationPipeline:
             for m in sample.history[-6:]
         )
         resp = await litellm.acompletion(
-            model="gemini/gemini-2.0-flash",
+            model="openai/gpt-4o-mini",
             messages=[
                 {"role": "system", "content": _CA_SYSTEM},
                 {"role": "user",   "content": _CA_USER.format(

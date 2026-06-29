@@ -9,6 +9,14 @@ import asyncio
 import os
 import time
 import uuid
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load .env from repo root so GEMINI_API_KEY and other secrets don't need
+# to be manually exported before running tests. override=False means a real
+# shell export or CI-injected variable always wins over .env.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
 import boto3
 import httpx

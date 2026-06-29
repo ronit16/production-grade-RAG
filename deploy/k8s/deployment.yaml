@@ -159,6 +159,20 @@ spec:
         queueLength: "10"        # scale out when queue depth > 10
         host: amqp://guest:guest@rabbitmq:5672//
 ---
+---
+# PodDisruptionBudget — ensures at least 2 API replicas stay up during
+# node drains, cluster upgrades, and voluntary disruptions.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rag-api-pdb
+  namespace: production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: rag-api
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

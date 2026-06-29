@@ -3,6 +3,7 @@ Production RAG System - Auth Middleware & Tenant Context
 Injects tenant + user context into every request. Enforces plan limits.
 """
 import hashlib
+import ipaddress
 import json
 import time
 from dataclasses import dataclass, field
@@ -256,6 +257,79 @@ async def check_rate_limit(
         await pipe.execute()
 
     return ctx
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Login / register rate limiter (IP-based, no auth required)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _resolve_client_ip(request: Request) -> str:
+    """Return the real client IP, trusting X-Forwarded-For only from known proxies.
+
+    Blindly reading X-Forwarded-For is a bypass vector: any client can spoof it.
+    We only parse it when the direct TCP peer is in TRUSTED_PROXY_CIDRS.
+    When trusted, we walk right-to-left and return the first hop that is NOT itself
+    a trusted proxy — this gives the originating client IP even through proxy chains.
+    """
+    peer_ip = request.client.host if request.client else None
+    if not peer_ip:
+        return "unknown"
+
+    trusted_cidrs = settings.TRUSTED_PROXY_CIDRS
+    if not trusted_cidrs:
+        return peer_ip  # no proxies configured — use the direct peer
+
+    try:
+        peer_addr = ipaddress.ip_address(peer_ip)
+        peer_is_trusted = any(
+            peer_addr in ipaddress.ip_network(cidr, strict=False)
+            for cidr in trusted_cidrs
+        )
+    except ValueError:
+        return peer_ip  # unparseable peer IP — fall back to peer
+
+    if not peer_is_trusted:
+        return peer_ip  # direct connection from untrusted peer
+
+    # Peer is a trusted proxy — walk X-Forwarded-For right-to-left
+    xff = request.headers.get("X-Forwarded-For", "")
+    if not xff:
+        return peer_ip
+
+    for hop in reversed([h.strip() for h in xff.split(",")]):
+        try:
+            hop_addr = ipaddress.ip_address(hop)
+            if not any(hop_addr in ipaddress.ip_network(c, strict=False) for c in trusted_cidrs):
+                return hop  # first untrusted hop is the real client
+        except ValueError:
+            continue
+
+    return peer_ip  # all hops were trusted proxies — use peer as fallback
+
+
+async def check_login_rate_limit(
+    request: Request,
+    redis: aioredis.Redis = Depends(get_redis),
+) -> None:
+    """IP-based rate limiter for unauthenticated endpoints (login, register).
+
+    Limits to LOGIN_RATE_LIMIT_PER_MINUTE attempts per IP per 60-second window.
+    Skipped in test/development environments.
+    """
+    if settings.APP_ENV in ("test", "development"):
+        return
+
+    ip = _resolve_client_ip(request)
+    key = f"login_attempt:{ip}"
+    count = await redis.incr(key)
+    if count == 1:
+        await redis.expire(key, 60)
+    if count > settings.LOGIN_RATE_LIMIT_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many attempts. Retry in 60 seconds.",
+            headers={"Retry-After": "60"},
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

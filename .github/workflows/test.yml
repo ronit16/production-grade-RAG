@@ -1,0 +1,93 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Run unit tests (no containers required)
+        run: pytest tests/unit/ -v --no-containers
+
+  regression:
+    name: Regression Tests
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Install system deps for document parsing
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libpoppler-cpp-dev poppler-utils libmagic1 tesseract-ocr
+
+      - name: Generate test JWT keypair
+        run: |
+          mkdir -p secrets
+          openssl genrsa -out secrets/jwt_private.pem 2048
+          openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
+
+      - name: Run regression tests (Testcontainers auto-starts services)
+        env:
+          SECRET_KEY: "ci-test-secret-key-minimum-32-chars-xx"
+          OPENAI_API_KEY: "sk-test-fake-openai-key-for-ci"
+          MINIO_ACCESS_KEY: "minioadmin"
+          MINIO_SECRET_KEY: "minioadmin"
+          APP_ENV: "test"
+        run: pytest tests/regression/ -v
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Generate test JWT keypair
+        run: |
+          mkdir -p secrets
+          openssl genrsa -out secrets/jwt_private.pem 2048
+          openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
+
+      - name: Run integration tests
+        env:
+          SECRET_KEY: "ci-test-secret-key-minimum-32-chars-xx"
+          OPENAI_API_KEY: "sk-test-fake-openai-key-for-ci"
+          MINIO_ACCESS_KEY: "minioadmin"
+          MINIO_SECRET_KEY: "minioadmin"
+          APP_ENV: "test"
+        run: pytest tests/integration/ -v

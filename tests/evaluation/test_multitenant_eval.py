@@ -5,7 +5,7 @@ Fast (always-run) tests verify that two EvaluationPipeline instances with
 different TenantContext objects are fully independent — they don't share state
 and each pipeline's retrieve() calls use the correct tenant_id.
 
-Slow tests (require GEMINI_API_KEY + running Celery worker) provision two
+Slow tests (require OPENAI_API_KEY + running Celery worker) provision two
 real tenants with different document corpora, run RAGAS evaluation on each,
 and verify:
   1. Answers diverge (each tenant sees only its own documents).
@@ -137,10 +137,10 @@ class TestEvalPipelineMockedMultiTenant:
 
 # ── Slow multi-tenant eval tests (require real API keys + Celery) ─────────────
 
-def _skip_if_no_gemini():
-    key = os.environ.get("GEMINI_API_KEY", "")
-    if not key or key == "test-fake-gemini-key":
-        pytest.skip("Requires a real GEMINI_API_KEY — export it before running.")
+def _skip_if_no_openai_key():
+    key = os.environ.get("OPENAI_API_KEY", "")
+    if not key or key.startswith("sk-test"):
+        pytest.skip("Requires a real OPENAI_API_KEY — add it to your .env file.")
 
 
 async def _build_ctx_for_token(client, token: str):
@@ -243,7 +243,7 @@ class TestAnswerDivergenceByTenant:
         Both tenants are asked the same vague question.  Because they have
         different document corpora, their answers must differ in topic.
         """
-        _skip_if_no_gemini()
+        _skip_if_no_openai_key()
 
         ctx_a = await _build_ctx_for_token(client, eval_tenant_a["token"])
         ctx_b = await _build_ctx_for_token(client, eval_tenant_b["token"])
@@ -278,7 +278,7 @@ class TestMultiTenantRAGASScores:
     @pytest.mark.slow
     async def test_tenant_a_scores_meet_thresholds(self, client, eval_tenant_a):
         """Acme corpus pipeline must meet all 8 metric thresholds."""
-        _skip_if_no_gemini()
+        _skip_if_no_openai_key()
         ctx     = await _build_ctx_for_token(client, eval_tenant_a["token"])
         results = await EvaluationPipeline(ctx).run_dataset(GOLDEN_SAMPLES)
         agg     = EvaluationPipeline.aggregate(results)
@@ -287,7 +287,7 @@ class TestMultiTenantRAGASScores:
     @pytest.mark.slow
     async def test_tenant_b_scores_meet_thresholds(self, client, eval_tenant_b):
         """RFC corpus pipeline must meet all 8 metric thresholds."""
-        _skip_if_no_gemini()
+        _skip_if_no_openai_key()
         ctx     = await _build_ctx_for_token(client, eval_tenant_b["token"])
         results = await EvaluationPipeline(ctx).run_dataset(GOLDEN_SAMPLES_RFC)
         agg     = EvaluationPipeline.aggregate(results)
@@ -303,7 +303,7 @@ class TestMultiTurnEvaluation:
         GOLDEN_SAMPLES_RFC[2] is a multi-turn sample (status codes follow-up).
         Its context_awareness must reach 0.70 (same threshold as existing tests).
         """
-        _skip_if_no_gemini()
+        _skip_if_no_openai_key()
         multiturn_sample = GOLDEN_SAMPLES_RFC[2]
         assert multiturn_sample.history, "Expected a multi-turn sample at index 2"
 

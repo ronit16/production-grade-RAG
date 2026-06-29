@@ -4,7 +4,7 @@ RAGAS evaluation pipeline — all 8 metric categories.
 Fast tests (no containers, no LLM key):
     pytest tests/evaluation/ --no-containers
 
-Live tests (requires running stack + real GEMINI_API_KEY):
+Live tests (requires running stack + real OPENAI_API_KEY):
     pytest tests/evaluation/ -m slow
 """
 import json
@@ -349,13 +349,13 @@ class TestRAGASMetrics:
     async def test_all_metrics_meet_thresholds(self, client, auth_headers):
         """
         End-to-end: real retrieve + generate_sync + RAGAS against golden samples.
-        Requires a real GEMINI_API_KEY and documents indexed in the running stack.
+        Requires a real OPENAI_API_KEY and documents indexed in the running stack.
         Skipped automatically when the key is a test placeholder.
         """
         import os
-        api_key = os.environ.get("GEMINI_API_KEY", "")
-        if not api_key or api_key == "test-fake-gemini-key":
-            pytest.skip("Requires a real GEMINI_API_KEY — set it in the environment before running.")
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if not api_key or api_key.startswith("sk-test"):
+            pytest.skip("Requires a real OPENAI_API_KEY — add it to your .env file.")
 
         from starlette.datastructures import State
         from app.core.database import get_db, get_redis

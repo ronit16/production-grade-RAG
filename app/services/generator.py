@@ -19,7 +19,8 @@ settings = get_settings()
 
 # Configure LiteLLM — each provider reads its key from os.environ
 os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
-os.environ["GEMINI_API_KEY"] = settings.GEMINI_API_KEY
+if settings.GEMINI_API_KEY:
+    os.environ["GEMINI_API_KEY"] = settings.GEMINI_API_KEY
 litellm.set_verbose = settings.DEBUG
 
 

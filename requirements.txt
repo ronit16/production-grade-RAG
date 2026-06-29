@@ -1,61 +1,50 @@
 # ── Web framework ──────────────────────────────────────────────────────────────
-fastapi
-uvicorn[standard]
-gunicorn                  # production process manager; spawns uvicorn workers via exec (fork-safe)
-python-multipart          # required for FastAPI file upload (UploadFile)
+fastapi>=0.111.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+gunicorn>=22.0.0,<24.0.0          # production process manager; spawns uvicorn workers
+python-multipart>=0.0.9,<1.0.0    # required for FastAPI file upload (UploadFile)
 
 # ── Database ───────────────────────────────────────────────────────────────────
-sqlalchemy[asyncio]
-asyncpg                   # async PostgreSQL driver
-psycopg2-binary           # sync driver (used by Celery workers)
-alembic                   # DB migrations
+sqlalchemy[asyncio]>=2.0.0,<3.0.0
+asyncpg>=0.29.0,<1.0.0            # async PostgreSQL driver
+psycopg2-binary>=2.9.0,<3.0.0    # sync driver (used by Celery workers + Alembic)
+alembic>=1.13.0,<2.0.0            # DB migrations
 
 # ── Cache ──────────────────────────────────────────────────────────────────────
-redis[asyncio]            # async Redis client
+redis[asyncio]>=5.0.0,<6.0.0      # async Redis client
 
 # ── Config & validation ────────────────────────────────────────────────────────
-pydantic
-pydantic-settings
-python-dotenv
+pydantic>=2.5.0,<3.0.0
+pydantic-settings>=2.1.0,<3.0.0
+python-dotenv>=1.0.0,<2.0.0
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
-PyJWT                     # RS256 JWT encode/decode
-bcrypt                    # password hashing
-email-validator           # pydantic EmailStr validation
+PyJWT>=2.8.0,<3.0.0               # RS256 JWT encode/decode
+bcrypt>=4.0.0,<5.0.0              # password hashing
+email-validator>=2.1.0,<3.0.0    # pydantic EmailStr validation
 
 # ── LLM & embeddings ──────────────────────────────────────────────────────────
-openai                    # embeddings + GPT-4o
-google-generativeai       # Gemini models (used by LiteLLM)
-litellm                   # provider-agnostic LLM routing + fallback
+openai>=1.30.0,<2.0.0             # embeddings + GPT-4o
+google-generativeai>=0.7.0,<1.0.0 # Gemini models (used by LiteLLM)
+litellm>=1.40.0,<2.0.0            # provider-agnostic LLM routing + fallback
 
 # ── Vector database (dense + sparse + hybrid fusion) ──────────────────────────
-qdrant-client             # Qdrant async/sync Python client
-fastembed                 # BM25 sparse embeddings (Qdrant/bm25 model)
-
-# ── Reranking ─────────────────────────────────────────────────────────────────
-# sentence-transformers removed — reranker replaced with fastembed TextCrossEncoder (ONNX, no PyTorch/CUDA)
+qdrant-client>=1.9.0,<2.0.0      # Qdrant async/sync Python client
+fastembed>=0.3.0,<1.0.0           # BM25 sparse embeddings + cross-encoder reranker (ONNX)
 
 # ── Document parsing ───────────────────────────────────────────────────────────
-unstructured[all-docs]    # PDF, DOCX, HTML, MD parsing
-pdfminer.six
-docx2txt
-markdown
-beautifulsoup4
+unstructured[all-docs]>=0.14.0,<1.0.0  # PDF, DOCX, HTML, MD parsing
+pdfminer.six>=20221105
+docx2txt>=0.8
+markdown>=3.6.0,<4.0.0
+beautifulsoup4>=4.12.0,<5.0.0
 
 # ── Object storage ────────────────────────────────────────────────────────────
-boto3                     # S3 upload/download
+boto3>=1.34.0,<2.0.0              # S3 upload/download
 
 # ── Async task queue ──────────────────────────────────────────────────────────
-celery[rabbitmq]          # async worker
-# ── Testing ───────────────────────────────────────────────────────────────────
-pytest
-pytest-asyncio
-pytest-timeout            # per-test timeout guard
-httpx                     # async HTTP client for FastAPI test client
-testcontainers[postgres,redis]  # real containers in regression tests
-respx                     # httpx-level mock for OpenAI/Gemini HTTP calls
-ragas                     # RAG evaluation metrics
-datasets                  # HuggingFace datasets (used by RAGAS)
+celery[rabbitmq]>=5.4.0,<6.0.0   # async worker
 
-# ── Load testing ──────────────────────────────────────────────────────────────
-locust
+# ── Observability ─────────────────────────────────────────────────────────────
+prometheus-fastapi-instrumentator>=0.9.1,<1.0.0  # /metrics endpoint
+python-json-logger>=2.0.0,<3.0.0                 # structured JSON log output

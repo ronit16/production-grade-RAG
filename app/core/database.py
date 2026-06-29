@@ -64,7 +64,41 @@ async def get_redis() -> aioredis.Redis:
 # ── Startup initialisation ─────────────────────────────────────────────────────
 
 async def init_db() -> None:
-    """Create all tables on startup (idempotent)."""
-    from app.models.db import Base  # import here to avoid circular deps
+    """Create tables idempotently, then ensure Alembic version tracking is live."""
+    from app.models.db import Base
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await _ensure_alembic_stamped()
+
+
+async def _ensure_alembic_stamped() -> None:
+    """Stamp the DB at Alembic 'head' on first run.
+
+    Bridges the gap between create_all() (which creates tables but doesn't
+    touch alembic_version) and future incremental Alembic migrations.
+    Idempotent: does nothing if the DB is already stamped.
+    """
+    from pathlib import Path
+    import asyncio
+    from sqlalchemy import text
+
+    async with engine.connect() as conn:
+        try:
+            row = await conn.execute(
+                text("SELECT version_num FROM alembic_version LIMIT 1")
+            )
+            if row.fetchone():
+                return  # already stamped — nothing to do
+        except Exception:
+            pass  # alembic_version table not yet created; fall through to stamp
+
+    from alembic.config import Config
+    from alembic import command as alembic_command
+
+    alembic_ini = Path(__file__).parents[2] / "alembic.ini"
+
+    def _stamp() -> None:
+        cfg = Config(str(alembic_ini))
+        alembic_command.stamp(cfg, "head")
+
+    await asyncio.get_event_loop().run_in_executor(None, _stamp)
