@@ -110,6 +110,11 @@ class Settings(BaseSettings):
     # ── Logging ────────────────────────────────────────────────────────────
     LOG_LEVEL: str           = "INFO"
 
+    @property
+    def SYNC_DATABASE_URL(self) -> str:
+        """Sync SQLAlchemy URL — strips +asyncpg if present (used by Celery workers)."""
+        return self.DATABASE_URL.replace("+asyncpg", "")
+
     @field_validator("APP_ENV")
     @classmethod
     def validate_env(cls, v: str) -> str:

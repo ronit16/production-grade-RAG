@@ -113,7 +113,7 @@ class TestEvalPipelineMockedMultiTenant:
             reference_contexts=["Context."],
         )
 
-        async def _retrieval_stub(q, ctx, **kw):
+        async def _retrieval_stub(question, ctx, **kw):
             return _fake_retrieval()
 
         answers = []

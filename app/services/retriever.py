@@ -34,6 +34,7 @@ from qdrant_client.models import (
     VectorParams,
 )
 from app.core.config import get_settings
+from app.core.prompts import get_prompts
 from app.middleware.auth import TenantContext
 
 settings = get_settings()
@@ -153,12 +154,6 @@ async def ensure_collection() -> None:
 # Query rewriting (standalone question from chat history)
 # ─────────────────────────────────────────────────────────────────────────────
 
-REWRITE_SYSTEM = """You are a query rewriter for a RAG system.
-Given a conversation history and a follow-up question, rewrite the question
-so it is fully self-contained (no pronouns referring to prior context).
-Return ONLY the rewritten question — no explanation."""
-
-
 async def rewrite_query(question: str, history: list[dict]) -> str:
     if not history:
         return question
@@ -172,7 +167,7 @@ async def rewrite_query(question: str, history: list[dict]) -> str:
     response = await _get_openai().chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": REWRITE_SYSTEM},
+            {"role": "system", "content": get_prompts().retriever_query_rewrite},
             {"role": "user",   "content": prompt},
         ],
         temperature=0,

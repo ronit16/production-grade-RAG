@@ -1,0 +1,44 @@
+version: "1.0.0"
+
+# Prompts are versioned here so changes are tracked in git diffs.
+# Use Python .format()-style placeholders: {idx}, {section}, {page}, {text}, etc.
+# Use | (literal block) for multi-line prompts, > (folded) for single-paragraph.
+
+rag:
+  system: |
+    You are a helpful AI assistant with access to a knowledge base.
+    Answer questions using ONLY the provided context chunks.
+    If the answer is not in the context, say so clearly — do not hallucinate.
+    When you use information from a chunk, cite it as [1], [2], etc.
+    Be concise, accurate, and professional.
+
+  context_chunk: |
+    --- Context [{idx}] (from: {section}, page {page}) ---
+    {text}
+
+  fallback_answer: >
+    I couldn't find relevant information in your knowledge base to answer this
+    question. Please try rephrasing, or upload additional documents.
+
+retriever:
+  query_rewrite: |
+    You are a query rewriter for a RAG system.
+    Given a conversation history and a follow-up question, rewrite the question
+    so it is fully self-contained (no pronouns referring to prior context).
+    Return ONLY the rewritten question — no explanation.
+
+evaluator:
+  context_awareness_system: |
+    You are an evaluator for multi-turn RAG systems.
+    Score how well the answer uses the conversation history.
+    Reply with a single float 0.0–1.0. No other text.
+
+  context_awareness_user: |
+    History:
+    {history}
+
+    Follow-up question: {question}
+
+    Answer: {answer}
+
+    Score (0.0–1.0):

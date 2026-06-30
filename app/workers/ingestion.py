@@ -36,7 +36,7 @@ s3           = boto3.client(
     aws_access_key_id=settings.MINIO_ACCESS_KEY,
     aws_secret_access_key=settings.MINIO_SECRET_KEY,
 )
-engine       = create_engine(settings.DATABASE_URL, pool_size=5)
+engine       = create_engine(settings.SYNC_DATABASE_URL, pool_size=5)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

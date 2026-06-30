@@ -12,6 +12,7 @@ import litellm
 from litellm import acompletion
 
 from app.core.config import get_settings
+from app.core.prompts import get_prompts
 from app.middleware.auth import TenantContext
 from app.services.retriever import RetrievalResult, RetrievedChunk
 
@@ -22,27 +23,6 @@ os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
 if settings.GEMINI_API_KEY:
     os.environ["GEMINI_API_KEY"] = settings.GEMINI_API_KEY
 litellm.set_verbose = settings.DEBUG
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Prompts
-# ─────────────────────────────────────────────────────────────────────────────
-
-BASE_SYSTEM = """You are a helpful AI assistant with access to a knowledge base.
-Answer questions using ONLY the provided context chunks.
-If the answer is not in the context, say so clearly — do not hallucinate.
-When you use information from a chunk, cite it as [1], [2], etc.
-Be concise, accurate, and professional."""
-
-CONTEXT_TEMPLATE = """
---- Context [{idx}] (from: {section}, page {page}) ---
-{text}
-"""
-
-FALLBACK_ANSWER = (
-    "I couldn't find relevant information in your knowledge base to answer this question. "
-    "Please try rephrasing, or upload additional documents."
-)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +55,7 @@ def build_context(chunks: list[RetrievedChunk], max_tokens: int = 6000) -> tuple
         section  = chunk.section or "Unknown section"
         page     = chunk.page_number or "N/A"
 
-        context_parts.append(CONTEXT_TEMPLATE.format(
+        context_parts.append(get_prompts().rag_context_chunk.format(
             idx=idx, section=section, page=page, text=chunk.text
         ))
         sources.append({
@@ -96,7 +76,7 @@ def build_messages(req: GenerationRequest) -> list[dict]:
     """Assemble full message list for the LLM."""
     context_text, _ = build_context(req.chunks)
 
-    system_content = req.system_override or BASE_SYSTEM
+    system_content = req.system_override or get_prompts().rag_system
     if context_text:
         system_content += f"\n\n=== Knowledge Base Context ===\n{context_text}"
 
@@ -179,7 +159,7 @@ async def generate_stream(
 
     except litellm.Timeout:
         yield GenerationChunk(
-            delta=FALLBACK_ANSWER,
+            delta=get_prompts().rag_fallback_answer,
             done=True,
             error="LLM timeout",
             query_id=req.query_id,

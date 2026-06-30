@@ -17,7 +17,11 @@ import pytest
 
 from app.services.evaluator import EvalResult, EvalSample, EvaluationPipeline
 from app.services.retriever import RetrievalResult, RetrievedChunk
-from tests.evaluation.golden_dataset import GOLDEN_SAMPLES, METRIC_THRESHOLDS
+from tests.evaluation.golden_dataset import (
+    ALL_GOLDEN_SAMPLES,
+    GOLDEN_SAMPLES,
+    METRIC_THRESHOLDS,
+)
 
 
 # ─── Shared test helpers ──────────────────────────────────────────────────────
@@ -346,16 +350,22 @@ class TestAggregation:
 
 class TestRAGASMetrics:
     @pytest.mark.slow
-    async def test_all_metrics_meet_thresholds(self, client, auth_headers):
+    async def test_all_metrics_meet_thresholds(self, client, auth_headers, ingest_eval_fixtures):
         """
         End-to-end: real retrieve + generate_sync + RAGAS against golden samples.
-        Requires a real OPENAI_API_KEY and documents indexed in the running stack.
-        Skipped automatically when the key is a test placeholder.
+        Requires a real OPENAI_API_KEY and GEMINI_API_KEY.
+        Skipped automatically when keys are test placeholders.
+        Writes eval_summary.json for CI reporting via scripts/ci_eval_summary.py.
         """
         import os
+        import pathlib
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key or api_key.startswith("sk-test"):
             pytest.skip("Requires a real OPENAI_API_KEY — add it to your .env file.")
+
+        # Cap sample count for CI cost control (EVAL_SAMPLE_LIMIT env var)
+        limit = int(os.environ.get("EVAL_SAMPLE_LIMIT", len(ALL_GOLDEN_SAMPLES)))
+        samples = ALL_GOLDEN_SAMPLES[:limit]
 
         from starlette.datastructures import State
         from app.core.database import get_db, get_redis
@@ -365,20 +375,23 @@ class TestRAGASMetrics:
         token = auth_headers["Authorization"].split(" ", 1)[1]
         creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
-        # get_tenant_ctx sets request.state.tenant; supply a stub request
         mock_request = MagicMock()
         mock_request.state = State()
 
-        # get_db() is an async generator; get_redis() is a plain async function
         async for db in get_db():
             redis = await get_redis()
             ctx   = await get_tenant_ctx(
                 request=mock_request, credentials=creds, db=db, redis=redis
             )
             pipeline = EvaluationPipeline(ctx)
-            results  = await pipeline.run_dataset(GOLDEN_SAMPLES)
+            results  = await pipeline.run_dataset(samples)
             agg      = EvaluationPipeline.aggregate(results)
             break
+
+        # Write metrics for CI job summary (scripts/ci_eval_summary.py reads this)
+        pathlib.Path("eval_summary.json").write_text(
+            json.dumps({**agg, "sample_count": len(samples)})
+        )
 
         upper_bound_metrics = {"hallucination_rate"}
         for metric, threshold in METRIC_THRESHOLDS.items():

@@ -22,6 +22,7 @@ from typing import Optional
 
 import litellm
 
+from app.core.prompts import get_prompts
 from app.middleware.auth import TenantContext
 from app.services.generator import GenerationRequest, generate_sync
 from app.services.retriever import RetrievalResult, retrieve
@@ -83,18 +84,6 @@ class EvalResult:
 
 
 # ─── Context-awareness LLM judge ─────────────────────────────────────────────
-
-_CA_SYSTEM = (
-    "You are an evaluator for multi-turn RAG systems. "
-    "Score how well the answer uses the conversation history. "
-    "Reply with a single float 0.0–1.0. No other text."
-)
-_CA_USER = (
-    "History:\n{history}\n\n"
-    "Follow-up question: {question}\n\n"
-    "Answer: {answer}\n\n"
-    "Score (0.0–1.0):"
-)
 
 
 # ─── Pipeline ────────────────────────────────────────────────────────────────
@@ -278,8 +267,8 @@ class EvaluationPipeline:
         resp = await litellm.acompletion(
             model="openai/gpt-4o-mini",
             messages=[
-                {"role": "system", "content": _CA_SYSTEM},
-                {"role": "user",   "content": _CA_USER.format(
+                {"role": "system", "content": get_prompts().evaluator_ca_system},
+                {"role": "user",   "content": get_prompts().evaluator_ca_user.format(
                     history=history_str,
                     question=sample.question,
                     answer=answer,
